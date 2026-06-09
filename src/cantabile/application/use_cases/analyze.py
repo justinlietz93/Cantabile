@@ -38,6 +38,8 @@ def analyze_playlist(
         oc = AnalyzeOutcome(seq=entry.position + 1, artist=track.primary_artist,
                             title=track.title)
         asset = store.get_asset(track.id)
+        if asset is not None:
+            asset.stems = store.get_stems(track.id)   # let analyzers use stems if present
         for analyzer in analyzers:
             if not analyzer.applies_to(track, asset):
                 continue

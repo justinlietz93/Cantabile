@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS assets (
     track_id TEXT PRIMARY KEY, source TEXT, source_url TEXT, file_path TEXT,
     duration_sec REAL, match_confidence TEXT, fetched_at TEXT
 );
+CREATE TABLE IF NOT EXISTS stems (
+    track_id TEXT, stem_name TEXT, file_path TEXT,
+    PRIMARY KEY (track_id, stem_name)
+);
 """
 
 
@@ -142,6 +146,19 @@ class SqliteStore:
         return AudioAsset(TrackId(r["track_id"]), Provenance(r["source"]), r["source_url"],
                           r["file_path"], r["duration_sec"], Confidence(r["match_confidence"]),
                           _dt(r["fetched_at"]))
+
+    # ---- stems ------------------------------------------------------------ #
+    def set_stems(self, track_id: TrackId, stems: dict[str, str]) -> None:
+        self._conn.execute("DELETE FROM stems WHERE track_id=?", (track_id.value,))
+        self._conn.executemany(
+            "INSERT INTO stems (track_id, stem_name, file_path) VALUES (?,?,?)",
+            [(track_id.value, name, path) for name, path in stems.items()])
+        self._conn.commit()
+
+    def get_stems(self, track_id: TrackId) -> dict[str, str]:
+        rows = self._conn.execute(
+            "SELECT stem_name, file_path FROM stems WHERE track_id=?", (track_id.value,))
+        return {r["stem_name"]: r["file_path"] for r in rows}
 
     def close(self) -> None:
         self._conn.close()

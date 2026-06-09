@@ -76,6 +76,77 @@ def cmd_lyrics(args, settings: Settings) -> None:
     store.close()
 
 
+def cmd_mir(args, settings: Settings) -> None:
+    # imported lazily so core commands don't require the [audio] extra
+    from cantabile.adapters.analyzers.mir import MIRAnalyzer
+    from cantabile.application.use_cases.analyze import analyze_playlist
+
+    store = SqliteStore(settings.db_path)
+    name = args.playlist
+    if args.csv:
+        name = _import_csv(args.csv, store)
+    playlist = store.get_playlist(name) if name else None
+    if not playlist:
+        store.close()
+        sys.exit(f"Playlist '{name}' not in store. Import it first.")
+
+    print(f"Analyzing audio for {playlist.size} tracks in '{name}' "
+          f"(needs fetched audio)\n" + "-" * 60)
+    outcomes = analyze_playlist(playlist, store, [MIRAnalyzer()], force=args.force)
+
+    done = skipped = noaudio = 0
+    for oc in outcomes:
+        n = oc.results.get("mir", 0)
+        if oc.status == "skipped-existing":
+            tag, skipped = "skip", skipped + 1
+        elif n > 0:
+            tag, done = "ok", done + 1
+        else:
+            tag, noaudio = "--", noaudio + 1
+        print(f"[{oc.seq:>3}/{playlist.size}] {tag:<4} {oc.artist[:20]:20} - {oc.title[:30]}")
+    print(f"\nMIR: {done} analyzed, {skipped} already done, {noaudio} without audio. "
+          f"Stored in {settings.db_path}.\nRun a query to compare felt vs Spotify tempo.")
+    store.close()
+
+
+def cmd_separate(args, settings: Settings) -> None:
+    # imported lazily so core commands don't require the [separation] extra (torch)
+    from cantabile.adapters.separators.demucs import DemucsSeparator
+    from cantabile.application.use_cases.separate import separate_playlist
+
+    store = SqliteStore(settings.db_path)
+    name = args.playlist
+    playlist = store.get_playlist(name) if name else None
+    if not playlist:
+        store.close()
+        sys.exit(f"Playlist '{name}' not in store. Import and fetch it first.")
+
+    separator = DemucsSeparator(
+        model=args.model or settings.demucs_model, device=settings.demucs_device,
+        segment=args.segment if args.segment is not None else settings.demucs_segment,
+        fmt=settings.demucs_format, two_stems=args.two_stems)
+    out_dir = Path(args.out or settings.stems_dir)
+
+    print(f"Separating '{name}' ({playlist.size} tracks) with {separator.model} on "
+          f"{separator.device}\nStems -> {out_dir}  (this is slow on CPU; run once)\n" + "-" * 60)
+    outcomes = separate_playlist(playlist, store, separator, out_dir, force=args.force)
+
+    done = skipped = noaudio = failed = 0
+    for oc in outcomes:
+        if oc.status == "separated":
+            tag, done = "ok", done + 1
+        elif oc.status == "skipped-existing":
+            tag, skipped = "skip", skipped + 1
+        elif oc.status == "no-audio":
+            tag, noaudio = "--", noaudio + 1
+        else:
+            tag, failed = "FAIL", failed + 1
+        print(f"[{oc.seq:>3}/{playlist.size}] {tag:<4} {oc.artist[:20]:20} - {oc.title[:28]}  {oc.status}")
+    print(f"\nSeparated {done}, skipped {skipped}, no audio {noaudio}, failed {failed}. "
+          f"Stems recorded in {settings.db_path}.\nNow rerun 'cantabile mir' to analyze from stems.")
+    store.close()
+
+
 def cmd_import(args, settings: Settings) -> None:
     store = SqliteStore(settings.db_path)
     name = _import_csv(args.csv, store)
@@ -132,6 +203,21 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--cache", help="Path to the lyrics cache JSON")
     pl.add_argument("--force", action="store_true",
                     help="Re-fetch even if a track already has lyrics")
+
+    pm = sub.add_parser("mir", help="Analyze fetched audio (felt tempo, sections, loop/line)")
+    pm.add_argument("--playlist", help="Name of an already-imported playlist")
+    pm.add_argument("--csv", help="Exportify CSV to import then analyze")
+    pm.add_argument("--force", action="store_true",
+                    help="Re-analyze even if a track already has MIR results")
+
+    ps = sub.add_parser("separate", help="Split fetched audio into stems (Demucs)")
+    ps.add_argument("--playlist", required=True, help="Name of an imported+fetched playlist")
+    ps.add_argument("--model", help="Demucs model (default htdemucs)")
+    ps.add_argument("--segment", type=float, help="Seconds per chunk; lower = less RAM")
+    ps.add_argument("--two-stems", metavar="STEM",
+                    help="Lighter split, e.g. 'vocals' for vocals/no_vocals")
+    ps.add_argument("--out", help="Output dir for stems (point at a big drive)")
+    ps.add_argument("--force", action="store_true", help="Re-separate even if stems exist")
     return p
 
 
@@ -144,6 +230,10 @@ def main() -> None:
         cmd_fetch(args, settings)
     elif args.cmd == "lyrics":
         cmd_lyrics(args, settings)
+    elif args.cmd == "mir":
+        cmd_mir(args, settings)
+    elif args.cmd == "separate":
+        cmd_separate(args, settings)
 
 
 if __name__ == "__main__":

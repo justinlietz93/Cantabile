@@ -39,10 +39,16 @@ measured from the waveform itself.
 - **Looks up lyrics** for every track (LRCLIB first, Genius as fallback) and
   stores them as Observations, marking instrumentals and caching results so
   reruns are instant.
+- **Measures structure from the audio** (MIR): felt tempo, how much the tempo
+  breathes, section count, and whether a piece loops or runs as a line. The
+  felt tempo is stored as a high-trust `tempo` Observation, so it overrides
+  Spotify's often-wrong number automatically.
+- **Separates tracks into stems** (Demucs): drums, bass, vocals, other. When
+  stems exist, MIR reads tempo off the drum stem and harmonic structure off the
+  instrument stem, so a steady kick under a rubato lead no longer smears the
+  measurement.
 
-Not built yet (the port is defined and waiting): an **MIR** analyzer that
-measures felt tempo, sections, and loop-vs-line structure from the audio. A GUI
-comes after that.
+Not built yet: a GUI, and CSV/report export.
 
 ---
 
@@ -183,6 +189,50 @@ To enable Genius fallback, get a free token from the Genius API and set it:
 export GENIUS_TOKEN="your_token"
 ```
 
+### Analyze audio (MIR)
+
+Once a playlist's audio is fetched, measure its structure from the waveform:
+
+```bash
+cantabile mir --playlist Dominion           # analyze fetched audio
+cantabile mir --playlist Dominion --force    # re-analyze even if already done
+```
+
+For each track with audio it stores: `felt_tempo` and a competing `tempo`
+(both audio-provenance, so the resolver returns these over Spotify's),
+`tempo_variability` (how much the pulse breathes), `tempo_min`/`tempo_max`,
+`section_count`, a `loop_score`, and a `structure` value of `loop` or `line`.
+Tracks without fetched audio are skipped. Needs the audio extra
+(`pip install -e ".[audio]"`) and ffmpeg.
+
+If you've separated stems first (see below), MIR automatically reads tempo from
+the drum stem and structure from the instrument stem, which is more accurate
+for dense or polyrhythmic music.
+
+### Separate into stems
+
+Split each fetched track into drums, bass, vocals, and other, using Demucs:
+
+```bash
+cantabile separate --playlist Dominion
+cantabile separate --playlist Dominion --two-stems vocals   # lighter: vocals/no_vocals
+cantabile separate --playlist Dominion --out /mnt/bigdrive/cantabile_stems
+```
+
+This is the heavy stage. It needs the separation extra (`pip install -e
+".[separation]"`, which pulls PyTorch) and ffmpeg. Read this before running it:
+
+- **CPU-only unless you have an NVIDIA GPU.** On an integrated GPU it runs on
+  the CPU, a few minutes per track. A full playlist is an overnight job. It's
+  cached hard, so you pay the cost once; rerun only adds new tracks.
+- **Watch your RAM.** On an 8 GB machine, close other apps and keep the default
+  small `--segment` (lower it further if you hit swap thrash). Each chunk is
+  processed separately to cap peak memory.
+- **Put stems on a big drive.** They're large even as FLAC. Set
+  `CANTABILE_STEMS_DIR` (or `--out`) to an external drive, never the system disk.
+
+After separating, rerun `cantabile mir` and it will analyze from the stems.
+
 ### fetch flags
 
 | Flag | Meaning |
@@ -265,11 +315,10 @@ rules is in `governance/policies/architecture_contracts.md`.
 
 ## Roadmap
 
-1. **MIR analyzer** — felt tempo, tempo variance, section count, loop-vs-line,
-   measured from the waveform and stored as high-trust Observations.
-2. **CSV / report export** — pull the store back out for sharing.
-3. **GUI** — a new presentation adapter reading the database directly, with the
+1. **CSV / report export** — pull the store back out for sharing.
+2. **GUI** — a new presentation adapter reading the database directly, with the
    charts and visualizations.
 
-Done: import, audio fetch with matching/dedup/overrides/suggestions, and the
-lyrics analyzer (LRCLIB + Genius).
+Done: import, audio fetch with matching/dedup/overrides/suggestions, the lyrics
+analyzer (LRCLIB + Genius), the MIR analyzer (felt tempo, variability, sections,
+loop-vs-line), and Demucs stem separation feeding stem-aware MIR.

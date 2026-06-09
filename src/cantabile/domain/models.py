@@ -62,3 +62,4 @@ class AudioAsset:
     duration_sec: Optional[float] = None
     match_confidence: Confidence = Confidence.NONE
     fetched_at: Optional[datetime] = None
+    stems: dict[str, str] = field(default_factory=dict)  # stem name -> path (populated at analyze time)

@@ -41,6 +41,12 @@ class Settings:
     insecure: bool = _env_bool("CANTABILE_INSECURE")
     cookiefile: Optional[str] = _env("CANTABILE_COOKIES")
     proxy: Optional[str] = _env("CANTABILE_PROXY")
+    # stem separation
+    stems_dir: str = _env("CANTABILE_STEMS_DIR", "./stems")
+    demucs_model: str = _env("CANTABILE_DEMUCS_MODEL", "htdemucs")
+    demucs_segment: float = float(_env("CANTABILE_DEMUCS_SEGMENT", "7.0"))
+    demucs_format: str = _env("CANTABILE_DEMUCS_FORMAT", "flac")
+    demucs_device: str = _env("CANTABILE_DEMUCS_DEVICE", "cpu")
 
 
 def load_overrides(path: Optional[str], inline: Optional[list[str]]) -> dict[int, str]:

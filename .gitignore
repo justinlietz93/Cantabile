@@ -39,5 +39,11 @@ venv/
 .import_linter_cache/
 .grimp_cache/
 
+# lyrics cache
+lyrics_cache.json
+
+# separated stems (large; keep on an external drive)
+stems/
+
 # inputs
 inputs/*.csv
