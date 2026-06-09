@@ -41,6 +41,41 @@ def _print_outcomes(outcomes, total: int) -> None:
                 print(f"      {oc.seq},{s.url}    # {s.source}: {s.artist} - {s.title} [{s.note}]")
 
 
+def cmd_lyrics(args, settings: Settings) -> None:
+    # imported lazily so core commands don't require the [lyrics] extra
+    from cantabile.adapters.analyzers.lyrics import LyricsAnalyzer
+    from cantabile.application.use_cases.analyze import analyze_playlist
+
+    store = SqliteStore(settings.db_path)
+    name = args.playlist
+    if args.csv:
+        name = _import_csv(args.csv, store)
+    playlist = store.get_playlist(name) if name else None
+    if not playlist:
+        store.close()
+        sys.exit(f"Playlist '{name}' not in store. Import it first.")
+
+    analyzer = LyricsAnalyzer(cache_path=args.cache, insecure=settings.insecure)
+    print(f"Looking up lyrics for {playlist.size} tracks in '{name}'"
+          f"{'' if analyzer._genius_token else '  (LRCLIB-only; set GENIUS_TOKEN for fallback)'}")
+    print("-" * 60)
+    outcomes = analyze_playlist(playlist, store, [analyzer], force=args.force)
+
+    found = skipped = empty = 0
+    for oc in outcomes:
+        n = oc.results.get("lyrics", 0)
+        if oc.status == "skipped-existing":
+            tag, skipped = "skip", skipped + 1
+        elif n > 0:
+            tag, found = "ok", found + 1
+        else:
+            tag, empty = "--", empty + 1
+        print(f"[{oc.seq:>3}/{playlist.size}] {tag:<4} {oc.artist[:20]:20} - {oc.title[:34]}")
+    print(f"\nLyrics: {found} found, {skipped} already had them, {empty} none. "
+          f"Stored in {settings.db_path}")
+    store.close()
+
+
 def cmd_import(args, settings: Settings) -> None:
     store = SqliteStore(settings.db_path)
     name = _import_csv(args.csv, store)
@@ -90,6 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
     pf.add_argument("--no-suggest", action="store_true")
     pf.add_argument("--overrides", help="CSV of seq,url override pins")
     pf.add_argument("--override", action="append", metavar="SEQ=URL")
+
+    pl = sub.add_parser("lyrics", help="Look up lyrics (LRCLIB + Genius) into the store")
+    pl.add_argument("--playlist", help="Name of an already-imported playlist")
+    pl.add_argument("--csv", help="Exportify CSV to import then analyze")
+    pl.add_argument("--cache", help="Path to the lyrics cache JSON")
+    pl.add_argument("--force", action="store_true",
+                    help="Re-fetch even if a track already has lyrics")
     return p
 
 
@@ -100,6 +142,8 @@ def main() -> None:
         cmd_import(args, settings)
     elif args.cmd == "fetch":
         cmd_fetch(args, settings)
+    elif args.cmd == "lyrics":
+        cmd_lyrics(args, settings)
 
 
 if __name__ == "__main__":

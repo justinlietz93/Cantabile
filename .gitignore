@@ -38,3 +38,6 @@ venv/
 # tool caches
 .import_linter_cache/
 .grimp_cache/
+
+# inputs
+inputs/*.csv
