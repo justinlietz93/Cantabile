@@ -11,6 +11,11 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("requests")
+pytest.importorskip("bs4")
+
 from cantabile.adapters.analyzers.lyrics import LyricsAnalyzer
 from cantabile.domain.models import Track
 from cantabile.domain.value_objects import Provenance, TrackId

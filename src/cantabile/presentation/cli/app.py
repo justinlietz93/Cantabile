@@ -12,6 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from cantabile.adapters.export.filesystem import FilesystemReportWriter
 from cantabile.adapters.ingest.exportify import read_playlist
 from cantabile.adapters.providers.youtube import YouTubeProvider
 from cantabile.adapters.store.sqlite_store import SqliteStore
@@ -19,6 +20,8 @@ from cantabile.adapters.suggesters.bandcamp_soundcloud import (
     BandcampSuggester, SoundCloudSuggester)
 from cantabile.application.use_cases.acquire_audio import AcquireConfig, acquire_playlist
 from cantabile.application.use_cases.import_playlist import persist_import
+from cantabile.application.use_cases.report import build_playlist_report
+from cantabile.ports.source import SuggesterPort
 from cantabile.shared.settings import Settings, load_overrides
 
 
@@ -151,6 +154,9 @@ def cmd_import(args, settings: Settings) -> None:
     store = SqliteStore(settings.db_path)
     name = _import_csv(args.csv, store)
     pl = store.get_playlist(name)
+    if pl is None:
+        store.close()
+        sys.exit(f"Import failed for '{name}'.")
     print(f"Imported '{name}': {pl.size} tracks -> {settings.db_path}")
     store.close()
 
@@ -167,7 +173,10 @@ def cmd_fetch(args, settings: Settings) -> None:
         sys.exit(f"Playlist '{name}' not in store. Import it first.")
 
     provider = YouTubeProvider(settings.insecure, settings.cookiefile, settings.proxy)
-    suggesters = [SoundCloudSuggester(settings.insecure), BandcampSuggester(settings.insecure)]
+    suggesters: list[SuggesterPort] = [
+        SoundCloudSuggester(settings.insecure),
+        BandcampSuggester(settings.insecure),
+    ]
     cfg = AcquireConfig(
         out_dir=Path(settings.output_dir) / name, fmt=settings.audio_format,
         tolerance=settings.tolerance, search_count=settings.search_count, sleep=settings.sleep,
@@ -179,6 +188,29 @@ def cmd_fetch(args, settings: Settings) -> None:
     outcomes = acquire_playlist(playlist, store, provider, suggesters, cfg)
     _print_outcomes(outcomes, playlist.size)
     store.close()
+
+
+def cmd_export(args, settings: Settings) -> None:
+    store = SqliteStore(settings.db_path)
+    playlist = store.get_playlist(args.playlist)
+    if playlist is None:
+        store.close()
+        sys.exit(f"Playlist '{args.playlist}' not in store. Import it first.")
+    report = build_playlist_report(playlist, store)
+    result = FilesystemReportWriter().write(report, Path(args.out or settings.reports_dir))
+    print(f"Exported '{playlist.name}' -> {result.out_dir}")
+    print(f"  tracks       {result.tracks_csv}")
+    print(f"  observations {result.observations_csv}")
+    print(f"  report       {result.html_report}")
+    store.close()
+
+
+def cmd_gui(args, settings: Settings) -> None:
+    try:
+        from cantabile.presentation.gui.server import run_gui
+    except ImportError as exc:
+        raise SystemExit("Install the GUI extra first: pip install -e '.[gui]'") from exc
+    run_gui(settings, host=args.host, port=args.port, open_browser=not args.no_open)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,6 +250,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Lighter split, e.g. 'vocals' for vocals/no_vocals")
     ps.add_argument("--out", help="Output dir for stems (point at a big drive)")
     ps.add_argument("--force", action="store_true", help="Re-separate even if stems exist")
+
+    pe = sub.add_parser("export", help="Export playlist CSVs and an HTML report")
+    pe.add_argument("--playlist", required=True, help="Name of an imported playlist")
+    pe.add_argument("--out", help="Output directory for report artifacts")
+
+    pg = sub.add_parser("gui", help="Run the local browser GUI")
+    pg.add_argument("--host", default="127.0.0.1")
+    pg.add_argument("--port", type=int, default=8765)
+    pg.add_argument("--no-open", action="store_true", help="Do not open a browser tab")
     return p
 
 
@@ -234,6 +275,10 @@ def main() -> None:
         cmd_mir(args, settings)
     elif args.cmd == "separate":
         cmd_separate(args, settings)
+    elif args.cmd == "export":
+        cmd_export(args, settings)
+    elif args.cmd == "gui":
+        cmd_gui(args, settings)
 
 
 if __name__ == "__main__":

@@ -47,8 +47,8 @@ class LyricsAnalyzer:
 
     def __init__(self, cache_path: Optional[str] = None,
                  genius_token: Optional[str] = None, insecure: bool = False) -> None:
-        self._cache_path = Path(cache_path or os.getenv("CANTABILE_LYRICS_CACHE",
-                                                        "lyrics_cache.json"))
+        cache = cache_path or os.getenv("CANTABILE_LYRICS_CACHE") or "lyrics_cache.json"
+        self._cache_path = Path(cache)
         self._genius_token = genius_token or os.getenv("GENIUS_TOKEN", "").strip()
         self._verify = not insecure
         self._cache: dict[str, Any] = self._load_cache()

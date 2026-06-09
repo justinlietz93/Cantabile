@@ -25,6 +25,10 @@ def _env(key: str, default: Optional[str] = None) -> Optional[str]:
     return v if v not in (None, "") else default
 
 
+def _env_str(key: str, default: str) -> str:
+    return _env(key, default) or default
+
+
 def _env_bool(key: str, default: bool = False) -> bool:
     v = os.getenv(key)
     return default if v is None else v.strip().lower() in ("1", "true", "yes", "on")
@@ -32,21 +36,22 @@ def _env_bool(key: str, default: bool = False) -> bool:
 
 @dataclass
 class Settings:
-    db_path: str = _env("CANTABILE_DB", "cantabile.db")
-    output_dir: str = _env("CANTABILE_OUTPUT", "./audio")
-    audio_format: str = _env("CANTABILE_FORMAT", "wav")
-    tolerance: float = float(_env("CANTABILE_TOLERANCE", "7.0"))
-    search_count: int = int(_env("CANTABILE_SEARCH_COUNT", "6"))
-    sleep: float = float(_env("CANTABILE_SLEEP", "1.0"))
+    db_path: str = _env_str("CANTABILE_DB", "cantabile.db")
+    output_dir: str = _env_str("CANTABILE_OUTPUT", "./audio")
+    audio_format: str = _env_str("CANTABILE_FORMAT", "wav")
+    tolerance: float = float(_env_str("CANTABILE_TOLERANCE", "7.0"))
+    search_count: int = int(_env_str("CANTABILE_SEARCH_COUNT", "6"))
+    sleep: float = float(_env_str("CANTABILE_SLEEP", "1.0"))
     insecure: bool = _env_bool("CANTABILE_INSECURE")
     cookiefile: Optional[str] = _env("CANTABILE_COOKIES")
     proxy: Optional[str] = _env("CANTABILE_PROXY")
+    reports_dir: str = _env_str("CANTABILE_REPORTS_DIR", "./reports")
     # stem separation
-    stems_dir: str = _env("CANTABILE_STEMS_DIR", "./stems")
-    demucs_model: str = _env("CANTABILE_DEMUCS_MODEL", "htdemucs")
-    demucs_segment: float = float(_env("CANTABILE_DEMUCS_SEGMENT", "7.0"))
-    demucs_format: str = _env("CANTABILE_DEMUCS_FORMAT", "flac")
-    demucs_device: str = _env("CANTABILE_DEMUCS_DEVICE", "cpu")
+    stems_dir: str = _env_str("CANTABILE_STEMS_DIR", "./stems")
+    demucs_model: str = _env_str("CANTABILE_DEMUCS_MODEL", "htdemucs")
+    demucs_segment: float = float(_env_str("CANTABILE_DEMUCS_SEGMENT", "7.0"))
+    demucs_format: str = _env_str("CANTABILE_DEMUCS_FORMAT", "flac")
+    demucs_device: str = _env_str("CANTABILE_DEMUCS_DEVICE", "cpu")
 
 
 def load_overrides(path: Optional[str], inline: Optional[list[str]]) -> dict[int, str]:

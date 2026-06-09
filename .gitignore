@@ -17,6 +17,7 @@ audio/
 
 # analysis byproducts
 *.npy
+reports/
 
 # python
 __pycache__/

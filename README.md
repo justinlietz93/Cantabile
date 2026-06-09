@@ -47,8 +47,10 @@ measured from the waveform itself.
   stems exist, MIR reads tempo off the drum stem and harmonic structure off the
   instrument stem, so a steady kick under a rubato lead no longer smears the
   measurement.
-
-Not built yet: a GUI, and CSV/report export.
+- **Exports reports** as CSV plus a polished local HTML report from the same
+  resolved Observation view used by the app.
+- **Runs a local browser GUI** for import, fetch, lyrics, MIR, separation, and
+  export workflows without changing the domain/application architecture.
 
 ---
 
@@ -97,8 +99,8 @@ later, out (export). Audio files live on disk; the database holds the facts.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e .                 # core (import + fetch)
-pip install -e ".[dev]"          # + governance and test tools
-pip install -e ".[lyrics,audio]" # + the future analyzer dependencies
+pip install -e ".[all]"          # + lyrics, audio, separation, and GUI
+pip install -e ".[all,dev]"      # + every feature plus governance/test tools
 ```
 
 `ffmpeg` must be on your PATH (it extracts the audio):
@@ -233,6 +235,28 @@ This is the heavy stage. It needs the separation extra (`pip install -e
 
 After separating, rerun `cantabile mir` and it will analyze from the stems.
 
+### Export CSVs and an HTML report
+
+```bash
+cantabile export --playlist Dominion
+cantabile export --playlist Dominion --out /mnt/reports
+```
+
+The export creates a playlist folder containing `tracks.csv`,
+`observations.csv`, and `report.html`. The track CSV contains the resolved
+trusted value for each observed feature; the observations CSV keeps the raw
+source facts.
+
+### Run the GUI
+
+```bash
+cantabile gui
+cantabile gui --port 8770 --no-open
+```
+
+The GUI is local-only by default at `127.0.0.1:8765`. It uses the same store,
+use cases, and report/export path as the CLI.
+
 ### fetch flags
 
 | Flag | Meaning |
@@ -259,6 +283,7 @@ root (copy `.env.example`). These are read once at startup.
 | `CANTABILE_TOLERANCE` | `7.0` | seconds of length drift still counted "high" |
 | `CANTABILE_SEARCH_COUNT` | `6` | YouTube candidates considered per track |
 | `CANTABILE_SLEEP` | `1.0` | seconds between downloads (politeness) |
+| `CANTABILE_REPORTS_DIR` | `./reports` | where report/export bundles are written |
 | `CANTABILE_INSECURE` | `false` | skip TLS verification (only for self-signed proxies) |
 | `CANTABILE_COOKIES` | | path to a cookies.txt for age/region-restricted videos |
 | `CANTABILE_PROXY` | | proxy URL |
@@ -272,10 +297,11 @@ root (copy `.env.example`). These are read once at startup.
   SQLite browser and query it directly.
 - **`audio/<PlaylistName>/`** — the numbered audio files, e.g.
   `001_Miracle_Of_Sound_-_Forever_Flame.wav`.
+- **`reports/<PlaylistName>/`** — CSV and HTML report bundles.
 
-The database has five tables: `tracks`, `playlists`, `playlist_entries`
+The database has six tables: `tracks`, `playlists`, `playlist_entries`
 (the ordering), `observations` (every fact with its source and confidence), and
-`assets` (one downloaded file per track).
+`assets` (one downloaded file per track), plus `stems`.
 
 ---
 
@@ -315,10 +341,7 @@ rules is in `governance/policies/architecture_contracts.md`.
 
 ## Roadmap
 
-1. **CSV / report export** — pull the store back out for sharing.
-2. **GUI** — a new presentation adapter reading the database directly, with the
-   charts and visualizations.
-
 Done: import, audio fetch with matching/dedup/overrides/suggestions, the lyrics
 analyzer (LRCLIB + Genius), the MIR analyzer (felt tempo, variability, sections,
-loop-vs-line), and Demucs stem separation feeding stem-aware MIR.
+loop-vs-line), Demucs stem separation feeding stem-aware MIR, CSV/HTML export,
+and a local workflow GUI.

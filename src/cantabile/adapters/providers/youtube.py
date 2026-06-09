@@ -21,7 +21,7 @@ class YouTubeProvider:
 
     def __init__(self, insecure: bool = False, cookiefile: Optional[str] = None,
                  proxy: Optional[str] = None) -> None:
-        self._net = {"nocheckcertificate": insecure}
+        self._net: dict[str, object] = {"nocheckcertificate": insecure}
         if cookiefile:
             self._net["cookiefile"] = cookiefile
         if proxy:

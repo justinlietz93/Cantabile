@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS stems (
 
 def _dt(s: Optional[str]) -> Optional[datetime]:
     return datetime.fromisoformat(s) if s else None
+
+
+def _dt_or_now(s: Optional[str]) -> datetime:
+    return _dt(s) or datetime.now(timezone.utc)
 
 
 class SqliteStore:
@@ -103,6 +107,12 @@ class SqliteStore:
                    for r in rows]
         return Playlist(name=head["name"], entries=entries, source=head["source"])
 
+    def iter_playlists(self) -> Iterable[Playlist]:
+        for r in self._conn.execute("SELECT name FROM playlists ORDER BY name"):
+            playlist = self.get_playlist(r["name"])
+            if playlist is not None:
+                yield playlist
+
     # ---- observations ----------------------------------------------------- #
     def add_observation(self, o: Observation) -> None:
         self._conn.execute(
@@ -125,7 +135,8 @@ class SqliteStore:
             track_id=TrackId(r["track_id"]), feature=r["feature"],
             value=json.loads(r["value_json"]), source=Provenance(r["source"]),
             confidence=Confidence(r["confidence"]), unit=r["unit"],
-            analyzer_version=r["analyzer_version"], observed_at=_dt(r["observed_at"])) for r in rows]
+            analyzer_version=r["analyzer_version"],
+            observed_at=_dt_or_now(r["observed_at"])) for r in rows]
 
     # ---- assets ----------------------------------------------------------- #
     def upsert_asset(self, a: AudioAsset) -> None:

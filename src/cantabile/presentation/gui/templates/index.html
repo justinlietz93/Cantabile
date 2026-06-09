@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <aside class="library">
+      <header class="brand">
+        <span class="mark">C</span>
+        <div>
+          <strong>Cantabile</strong>
+          <small>analysis studio</small>
+        </div>
+      </header>
+
+      <form id="import-form" class="import-box">
+        <label for="csv-file">
+          Import
+          <span class="tip" tabindex="0" data-tip="Load an Exportify CSV into the local Cantabile database.">?</span>
+        </label>
+        <input id="csv-file" name="file" type="file" accept=".csv" required>
+        <button type="submit">Import CSV</button>
+      </form>
+
+      <div class="library-head">
+        <span>Playlists</span>
+        <button id="refresh" class="icon-button" type="button" aria-label="Refresh">Refresh</button>
+      </div>
+      <nav id="playlists" class="playlist-list" aria-label="Playlists"></nav>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Analysis Studio</p>
+          <h1 id="playlist-title">Choose a playlist</h1>
+          <p id="report-subtitle" class="subtitle">No library loaded</p>
+        </div>
+      </header>
+
+      <nav class="view-tabs" aria-label="Studio views">
+        <button type="button" class="view-tab active" data-view="analysis">Analysis Map</button>
+        <button type="button" class="view-tab" data-view="coverage">Coverage</button>
+        <button type="button" class="view-tab" data-view="matrix">Track Matrix</button>
+      </nav>
+
+      <div class="studio-view active" data-view-panel="analysis">
+        <section class="panel analysis-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Audio Shape</p>
+              <h2>
+                Analysis Map
+                <span class="tip" tabindex="0" data-tip="A visual workspace built from stored playlist audio facts: tempo, section count, loop/line shape, lyrics, and separated parts.">?</span>
+              </h2>
+            </div>
+          </div>
+          <div id="analysis-board" class="analysis-board"></div>
+        </section>
+      </div>
+
+      <div class="studio-view" data-view-panel="coverage">
+        <section id="metrics" class="metrics" aria-label="Playlist coverage"></section>
+
+        <section class="panel signal-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Signal</p>
+              <h2>
+                Trust and Coverage
+                <span class="tip" tabindex="0" data-tip="Shows how much of this playlist has usable downloaded audio, lyrics, analysis, and trusted facts.">?</span>
+              </h2>
+            </div>
+            <span id="signal-note" class="section-note"></span>
+          </div>
+          <div id="charts" class="charts"></div>
+        </section>
+      </div>
+
+      <div class="studio-view" data-view-panel="matrix">
+        <section class="panel table-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Tracks</p>
+              <h2>Audio Analysis</h2>
+            </div>
+            <input id="track-filter" type="search" placeholder="Filter">
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Track</th>
+                  <th><span class="term" tabindex="0" data-tip="The best tempo Cantabile has for this track. Audio-measured tempo beats Spotify's estimate.">Tempo</span></th>
+                  <th><span class="term" tabindex="0" data-tip="Measured tempo range and variation across the track. This appears after audio analysis.">Range</span></th>
+                  <th><span class="term" tabindex="0" data-tip="Estimated number of major musical sections. This appears after audio analysis.">Sections</span></th>
+                  <th><span class="term" tabindex="0" data-tip="How strongly the ending returns to material from the beginning. Higher means more loop-like.">Loop Score</span></th>
+                  <th><span class="term" tabindex="0" data-tip="Audio analysis label: loop means it returns to similar material; line means it moves forward without strong return.">Loop/Line</span></th>
+                  <th><span class="term" tabindex="0" data-tip="Download confidence, lyrics status, and separated audio parts.">Evidence</span></th>
+                </tr>
+              </thead>
+              <tbody id="track-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <aside class="console">
+      <section class="console-block">
+        <div class="console-title">
+          <div>
+            <p class="eyebrow">Run</p>
+            <h2>Command Console</h2>
+          </div>
+          <span id="console-playlist" class="mini-pill">No playlist</span>
+        </div>
+
+        <details class="command-group" open>
+          <summary>Acquire Audio <span class="tip" tabindex="0" data-tip="Search for the real recording, match by duration, and download audio.">?</span></summary>
+          <form data-action="/api/fetch" id="fetch-form" class="command-form">
+            <div class="switch-row">
+              <label><input name="dry_run" type="checkbox" checked> Preview only</label>
+              <label><input name="no_suggest" type="checkbox"> Skip alternates</label>
+            </div>
+            <textarea name="overrides_text" rows="4" placeholder="seq,url"></textarea>
+            <button type="submit">Find Audio</button>
+          </form>
+        </details>
+
+        <details class="command-group">
+          <summary>Analyze <span class="tip" tabindex="0" data-tip="Add lyrics and waveform-measured audio facts to the database.">?</span></summary>
+          <form data-action="/api/lyrics" class="command-form">
+            <label class="check"><input name="force" type="checkbox"> Force lyrics</label>
+            <button type="submit">Lookup Lyrics</button>
+          </form>
+          <form data-action="/api/mir" class="command-form">
+            <label class="check"><input name="force" type="checkbox"> Force audio analysis</label>
+            <button type="submit">Analyze Audio</button>
+          </form>
+        </details>
+
+        <details class="command-group">
+          <summary>Separate Parts <span class="tip" tabindex="0" data-tip="Split a downloaded track into parts like drums, bass, vocals, and other.">?</span></summary>
+          <form data-action="/api/separate" class="command-form">
+            <div class="field-grid">
+              <input name="model" placeholder="htdemucs">
+              <input name="segment" placeholder="7.0">
+              <input name="two_stems" placeholder="vocals">
+              <input name="out" placeholder="./stems">
+            </div>
+            <label class="check"><input name="force" type="checkbox"> Force separation</label>
+            <button type="submit">Separate Parts</button>
+          </form>
+        </details>
+
+        <details class="command-group">
+          <summary>Export <span class="tip" tabindex="0" data-tip="Write shareable CSV files and an HTML report for this playlist.">?</span></summary>
+          <form data-action="/api/export" class="command-form">
+            <input name="out" placeholder="./reports">
+            <button type="submit">Export Report</button>
+          </form>
+        </details>
+      </section>
+
+      <section class="console-block job-block">
+        <div class="jobs-head">
+          <h2>Jobs</h2>
+          <span id="job-count" class="mini-pill">0</span>
+        </div>
+        <div id="job-list" class="job-list"></div>
+      </section>
+    </aside>
+  </div>
+  <script src="{{ url_for('static', path='/visuals.js') }}"></script>
+  <script src="{{ url_for('static', path='/app.js') }}"></script>
+</body>
+</html>

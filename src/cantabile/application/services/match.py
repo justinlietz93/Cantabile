@@ -65,9 +65,11 @@ def pick_best(
         return None, None, Confidence.NONE
     scored = []
     for c in pool:
-        if target_sec and c.duration:
-            delta: Optional[float] = abs(c.duration - target_sec)
-            score = delta
+        duration = c.duration
+        if target_sec is not None and duration is not None:
+            raw_delta = abs(duration - target_sec)
+            delta: Optional[float] = raw_delta
+            score: float = raw_delta
         else:
             delta = None
             score = 600.0

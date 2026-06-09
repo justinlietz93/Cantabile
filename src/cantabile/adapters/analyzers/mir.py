@@ -38,6 +38,7 @@ class MIRAnalyzer:
     def analyze(self, track: Track, asset: Optional[AudioAsset]) -> list[Observation]:
         if not self.applies_to(track, asset):
             return []
+        assert asset is not None and asset.file_path is not None
         warnings.filterwarnings("ignore")
 
         # Prefer stems when present: drums drive tempo, the harmonic bed drives
@@ -83,10 +84,11 @@ class MIRAnalyzer:
         soenv = librosa.onset.onset_strength(y=y_struct, sr=_SR, hop_length=_HOP)
         _, beats = librosa.beat.beat_track(onset_envelope=soenv, sr=_SR, hop_length=_HOP)
         if len(beats) >= 24:
+            beat_frames = [int(b) for b in beats]
             chroma = librosa.feature.chroma_cqt(y=y_struct, sr=_SR, hop_length=_HOP)
             mfcc = librosa.feature.mfcc(y=y_struct, sr=_SR, hop_length=_HOP, n_mfcc=13)
-            cs = librosa.util.sync(chroma, beats, aggregate=np.median)
-            ms = librosa.util.sync(mfcc, beats, aggregate=np.mean)
+            cs = librosa.util.sync(chroma, beat_frames, aggregate=np.median)
+            ms = librosa.util.sync(mfcc, beat_frames, aggregate=np.mean)
             feat = np.vstack([librosa.util.normalize(cs, axis=0),
                               librosa.util.normalize(ms, axis=0)])
             n = feat.shape[1]

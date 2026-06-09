@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 """Enforce the 500-LOC rule. A file past the limit is a refactor signal."""
 from __future__ import annotations
-import sys
+
 from pathlib import Path
 
 LIMIT = 500
+SUFFIXES = {".py", ".css", ".js", ".html"}
+ROOTS = ("src", "tests", "governance")
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parents[2] / "src"
+    repo = Path(__file__).resolve().parents[2]
     offenders = []
-    for f in root.rglob("*.py"):
-        n = sum(1 for _ in f.open(encoding="utf-8"))
-        if n > LIMIT:
-            offenders.append((f, n))
+    for root_name in ROOTS:
+        root = repo / root_name
+        if not root.exists():
+            continue
+        for f in root.rglob("*"):
+            if f.is_file() and f.suffix in SUFFIXES:
+                n = sum(1 for _ in f.open(encoding="utf-8"))
+                if n > LIMIT:
+                    offenders.append((f.relative_to(repo), n))
     for f, n in offenders:
         print(f"OVER {LIMIT} LOC ({n}): {f}")
     if offenders:
