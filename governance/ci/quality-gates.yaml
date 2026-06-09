@@ -1,0 +1,12 @@
+# Reference CI gates for Cantabile. Wire into your runner of choice.
+gates:
+  - name: import-contracts
+    run: lint-imports --no-cache
+  - name: file-size
+    run: python governance/tools/enforce_size.py
+  - name: lint
+    run: ruff check src tests
+  - name: types
+    run: mypy src
+  - name: tests
+    run: pytest -q

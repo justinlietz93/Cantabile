@@ -1,0 +1,40 @@
+# secrets / local config
+.env
+*.env
+cookies.txt
+
+# the store + audio (never commit)
+*.db
+*.sqlite
+audio/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.opus
+*.webm
+*.part
+
+# analysis byproducts
+*.npy
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+
+# tool caches
+.import_linter_cache/
+.grimp_cache/

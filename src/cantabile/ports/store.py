@@ -1,0 +1,37 @@
+"""Store port: the persistence contract.
+
+The application talks to this interface, never to SQLite directly. Swapping
+storage backends later means writing a new adapter, not touching use cases.
+"""
+
+from __future__ import annotations
+
+from typing import Iterable, Optional, Protocol, runtime_checkable
+
+from cantabile.domain.models import AudioAsset, Playlist, Track
+from cantabile.domain.observation import Observation
+from cantabile.domain.value_objects import TrackId
+
+
+@runtime_checkable
+class StorePort(Protocol):
+    # tracks
+    def upsert_track(self, track: Track) -> None: ...
+    def get_track(self, track_id: TrackId) -> Optional[Track]: ...
+    def iter_tracks(self) -> Iterable[Track]: ...
+
+    # playlists
+    def upsert_playlist(self, playlist: Playlist) -> None: ...
+    def get_playlist(self, name: str) -> Optional[Playlist]: ...
+
+    # observations
+    def add_observation(self, obs: Observation) -> None: ...
+    def get_observations(
+        self, track_id: TrackId, feature: Optional[str] = None
+    ) -> list[Observation]: ...
+
+    # audio assets
+    def upsert_asset(self, asset: AudioAsset) -> None: ...
+    def get_asset(self, track_id: TrackId) -> Optional[AudioAsset]: ...
+
+    def close(self) -> None: ...

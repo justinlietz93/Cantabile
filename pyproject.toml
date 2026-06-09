@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cantabile"
+version = "0.1.0"
+description = "Playlist audio + structure lab. Imports Exportify CSV, fetches real audio, analyzes structure. SGHM architecture."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Justin K. Lietz" }]
+dependencies = [
+    "yt-dlp>=2024.1.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+lyrics = ["requests>=2.31", "beautifulsoup4>=4.12"]
+audio = ["librosa>=0.10", "soundfile>=0.12", "numpy>=1.24", "scipy>=1.10"]
+dev = ["import-linter>=2.0", "ruff>=0.4", "mypy>=1.8", "pytest>=8.0"]
+
+[project.scripts]
+cantabile = "cantabile.presentation.cli.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]

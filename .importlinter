@@ -1,0 +1,59 @@
+[importlinter]
+root_package = cantabile
+
+# The keystone. Every arrow points inward: domain depends on nothing, ports on
+# domain, adapters and application on ports + domain, and only presentation
+# (the composition root) may wire concrete adapters. import-linter fails the
+# build the moment any layer reaches outward.
+
+[importlinter:contract:domain-is-pure]
+name = Domain depends on nothing internal
+type = forbidden
+source_modules =
+    cantabile.domain
+forbidden_modules =
+    cantabile.ports
+    cantabile.adapters
+    cantabile.application
+    cantabile.presentation
+    cantabile.shared
+
+[importlinter:contract:ports-only-domain]
+name = Ports may only see the domain
+type = forbidden
+source_modules =
+    cantabile.ports
+forbidden_modules =
+    cantabile.adapters
+    cantabile.application
+    cantabile.presentation
+
+[importlinter:contract:application-uses-ports-not-adapters]
+name = Application talks to ports, never concrete adapters
+type = forbidden
+source_modules =
+    cantabile.application
+forbidden_modules =
+    cantabile.adapters
+    cantabile.presentation
+
+[importlinter:contract:adapters-implement-ports]
+name = Adapters implement ports, never reach up
+type = forbidden
+source_modules =
+    cantabile.adapters
+forbidden_modules =
+    cantabile.application
+    cantabile.presentation
+
+[importlinter:contract:shared-is-a-leaf]
+name = Shared carries no business rules
+type = forbidden
+source_modules =
+    cantabile.shared
+forbidden_modules =
+    cantabile.domain
+    cantabile.ports
+    cantabile.adapters
+    cantabile.application
+    cantabile.presentation

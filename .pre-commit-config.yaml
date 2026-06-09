@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import contracts (dependency direction)
+        entry: lint-imports --no-cache
+        language: system
+        pass_filenames: false
+      - id: enforce-size
+        name: 500-LOC rule
+        entry: python governance/tools/enforce_size.py
+        language: system
+        pass_filenames: false

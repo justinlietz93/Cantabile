@@ -1,0 +1,3 @@
+# seq,url  -- pin a manual source when the auto-match is wrong or off-platform.
+# Accepts any yt-dlp-supported site (YouTube, Bandcamp, SoundCloud).
+# 10,https://www.youtube.com/watch?v=PYEVWZTv_ZY
