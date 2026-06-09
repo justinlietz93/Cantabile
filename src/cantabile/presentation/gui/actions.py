@@ -46,6 +46,37 @@ def gui_state(settings: Settings, selected: str = "") -> dict[str, Any]:
         store.close()
 
 
+def gui_track(settings: Settings, playlist_name: str, seq: int) -> dict[str, Any]:
+    """Return one track's full detail row, including every observation."""
+
+    store = SqliteStore(settings.db_path)
+    try:
+        playlist = _playlist_or_raise(store, playlist_name)
+        report = build_playlist_report(playlist, store)
+        for row in report.tracks:
+            if row.seq == seq:
+                payload = asdict(row)
+                _trim_lyrics(payload)
+                return payload
+        raise ValueError(f"Track #{seq} not found in '{playlist_name}'.")
+    finally:
+        store.close()
+
+
+def _trim_lyrics(payload: dict[str, Any], limit: int = 400) -> None:
+    """Keep payloads light: send a lyrics preview, not whole songs."""
+    for obs in payload.get("observations", []):
+        if obs.get("feature") == "lyrics" and isinstance(obs.get("value"), str):
+            text = obs["value"]
+            if len(text) > limit:
+                obs["value"] = text[:limit] + " ..."
+    resolved = payload.get("resolved", {})
+    if "lyrics" in resolved and isinstance(resolved["lyrics"].get("value"), str):
+        text = resolved["lyrics"]["value"]
+        if len(text) > limit:
+            resolved["lyrics"]["value"] = text[:limit] + " ..."
+
+
 def import_csv(path: Path, settings: Settings, log: LogFn) -> dict[str, Any]:
     """Import a CSV file into the configured store."""
 
@@ -233,6 +264,15 @@ def _gui_report(report) -> dict[str, Any]:
     for row in payload["tracks"]:
         observations = row.pop("observations", [])
         row["observation_count"] = len(observations)
+        # surface the raw projection vs the measured value for the hero scatter
+        row["spotify_tempo"] = next(
+            (o["value"] for o in observations if o["feature"] == "tempo" and o["source"] == "spotify"),
+            None,
+        )
+        row["measured_tempo"] = next(
+            (o["value"] for o in observations if o["feature"] == "tempo" and o["source"] == "audio"),
+            None,
+        )
         if "lyrics" in row["resolved"]:
             row["resolved"]["lyrics"]["value"] = row["lyrics_status"]
     return payload

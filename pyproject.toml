@@ -42,7 +42,7 @@ cantabile = "cantabile.presentation.cli.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"cantabile.presentation.gui" = ["templates/*.html", "static/*.css", "static/*.js"]
+"cantabile.presentation.gui" = ["templates/*.html", "static/*.css", "static/*.js", "static/css/*.css", "static/js/*.js", "static/vendor/*.js"]
 
 [tool.ruff]
 line-length = 100

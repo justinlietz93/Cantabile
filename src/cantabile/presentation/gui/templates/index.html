@@ -4,180 +4,190 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ app_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
 </head>
 <body>
-  <div class="shell">
-    <aside class="library">
-      <header class="brand">
+  <div class="app">
+    <nav class="rail">
+      <div class="brand">
         <span class="mark">C</span>
-        <div>
-          <strong>Cantabile</strong>
-          <small>analysis studio</small>
-        </div>
-      </header>
-
-      <form id="import-form" class="import-box">
-        <label for="csv-file">
-          Import
-          <span class="tip" tabindex="0" data-tip="Load an Exportify CSV into the local Cantabile database.">?</span>
-        </label>
-        <input id="csv-file" name="file" type="file" accept=".csv" required>
-        <button type="submit">Import CSV</button>
-      </form>
-
-      <div class="library-head">
-        <span>Playlists</span>
-        <button id="refresh" class="icon-button" type="button" aria-label="Refresh">Refresh</button>
+        <div><strong>Cantabile</strong><small>analysis studio</small></div>
       </div>
-      <nav id="playlists" class="playlist-list" aria-label="Playlists"></nav>
-    </aside>
+      <button class="nav-item active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <span>Overview</span>
+      </button>
+      <button class="nav-item" data-view="tracks">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>Tracks</span>
+      </button>
+      <button class="nav-item" data-view="explore">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        <span>Explore</span>
+      </button>
+      <button class="nav-item" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 13h8V3H3z"/><path d="M13 21h8V8h-8z"/><path d="M13 3v3h8V3z"/><path d="M3 17v4h8v-4z"/></svg>
+        <span>Dashboards</span>
+      </button>
+      <div class="rail-spacer"></div>
+      <button class="nav-item" data-view="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span>Pipeline</span>
+      </button>
+      <div class="rail-foot">Local database<br><b id="db-count">0 playlists</b></div>
+    </nav>
 
-    <main class="workspace">
+    <div class="main">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Analysis Studio</p>
-          <h1 id="playlist-title">Choose a playlist</h1>
-          <p id="report-subtitle" class="subtitle">No library loaded</p>
+        <div class="switch">
+          <label>Playlist</label>
+          <select id="playlist-select"></select>
         </div>
+        <div class="kpis" id="kpis"></div>
+        <button class="btn btn-ghost" id="refresh" type="button" title="Reload from database">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <label class="btn" for="csv-file"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import CSV</label>
+        <input id="csv-file" type="file" accept=".csv" hidden>
       </header>
 
-      <nav class="view-tabs" aria-label="Studio views">
-        <button type="button" class="view-tab active" data-view="analysis">Analysis Map</button>
-        <button type="button" class="view-tab" data-view="coverage">Coverage</button>
-        <button type="button" class="view-tab" data-view="matrix">Track Matrix</button>
-      </nav>
-
-      <div class="studio-view active" data-view-panel="analysis">
-        <section class="panel analysis-panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Audio Shape</p>
-              <h2>
-                Analysis Map
-                <span class="tip" tabindex="0" data-tip="A visual workspace built from stored playlist audio facts: tempo, section count, loop/line shape, lyrics, and separated parts.">?</span>
-              </h2>
-            </div>
+      <div class="views">
+        <!-- OVERVIEW -->
+        <section class="view active" data-view="overview">
+          <div class="view-head">
+            <p class="eyebrow">Coverage &amp; shape</p>
+            <h1 id="ov-title">Overview</h1>
+            <p>Where every fact reads in two colors: <span class="prov-audio">amber is measured from the waveform and trusted</span>, <span class="prov-spotify">indigo is the Spotify projection</span>. When a point pulls off the diagonal below, the projection was wrong.</p>
           </div>
-          <div id="analysis-board" class="analysis-board"></div>
-        </section>
-      </div>
-
-      <div class="studio-view" data-view-panel="coverage">
-        <section id="metrics" class="metrics" aria-label="Playlist coverage"></section>
-
-        <section class="panel signal-panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Signal</p>
-              <h2>
-                Trust and Coverage
-                <span class="tip" tabindex="0" data-tip="Shows how much of this playlist has usable downloaded audio, lyrics, analysis, and trusted facts.">?</span>
-              </h2>
+          <div class="grid grid-4" id="ov-stats" style="margin-bottom:16px"></div>
+          <div class="panel" style="margin-bottom:16px">
+            <div class="panel-head">
+              <div><p class="eyebrow">The thesis</p><h2>Spotify tempo vs measured tempo</h2></div>
+              <span class="panel-note">distance from the diagonal = how wrong the projection was</span>
             </div>
-            <span id="signal-note" class="section-note"></span>
+            <div class="panel-body"><div class="chart hero" id="ov-tempo"></div></div>
           </div>
-          <div id="charts" class="charts"></div>
-        </section>
-      </div>
-
-      <div class="studio-view" data-view-panel="matrix">
-        <section class="panel table-panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Tracks</p>
-              <h2>Audio Analysis</h2>
-            </div>
-            <input id="track-filter" type="search" placeholder="Filter">
+          <div class="grid grid-2" style="margin-bottom:16px">
+            <div class="panel"><div class="panel-head"><h2>Energy vs valence</h2><span class="panel-note">point color = loop / line</span></div><div class="panel-body"><div class="chart" id="ov-ev"></div></div></div>
+            <div class="panel"><div class="panel-head"><h2>Loop / line</h2><span class="panel-note">measured structure</span></div><div class="panel-body"><div class="chart" id="ov-structure"></div></div></div>
           </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Track</th>
-                  <th><span class="term" tabindex="0" data-tip="The best tempo Cantabile has for this track. Audio-measured tempo beats Spotify's estimate.">Tempo</span></th>
-                  <th><span class="term" tabindex="0" data-tip="Measured tempo range and variation across the track. This appears after audio analysis.">Range</span></th>
-                  <th><span class="term" tabindex="0" data-tip="Estimated number of major musical sections. This appears after audio analysis.">Sections</span></th>
-                  <th><span class="term" tabindex="0" data-tip="How strongly the ending returns to material from the beginning. Higher means more loop-like.">Loop Score</span></th>
-                  <th><span class="term" tabindex="0" data-tip="Audio analysis label: loop means it returns to similar material; line means it moves forward without strong return.">Loop/Line</span></th>
-                  <th><span class="term" tabindex="0" data-tip="Download confidence, lyrics status, and separated audio parts.">Evidence</span></th>
-                </tr>
-              </thead>
-              <tbody id="track-body"></tbody>
-            </table>
+          <div class="grid grid-3">
+            <div class="panel"><div class="panel-head"><h2>Tempo source</h2></div><div class="panel-body"><div class="chart" id="ov-temposrc" style="height:240px"></div></div></div>
+            <div class="panel"><div class="panel-head"><h2>Fact provenance</h2></div><div class="panel-body"><div class="chart" id="ov-prov" style="height:240px"></div></div></div>
+            <div class="panel"><div class="panel-head"><h2>Download confidence</h2></div><div class="panel-body"><div class="chart" id="ov-conf" style="height:240px"></div></div></div>
           </div>
         </section>
-      </div>
-    </main>
 
-    <aside class="console">
-      <section class="console-block">
-        <div class="console-title">
-          <div>
-            <p class="eyebrow">Run</p>
-            <h2>Command Console</h2>
+        <!-- TRACKS -->
+        <section class="view" data-view="tracks">
+          <div class="view-head"><p class="eyebrow">Every track, every fact</p><h1>Tracks</h1></div>
+          <div class="panel">
+            <div class="panel-head">
+              <div class="table-tools">
+                <input class="search" id="track-search" type="search" placeholder="Filter by title or artist">
+                <span class="panel-note" id="track-count"></span>
+              </div>
+              <div class="menu">
+                <button class="btn btn-ghost" id="cols-btn" type="button">Columns &#9662;</button>
+                <div class="menu-pop" id="cols-pop" hidden></div>
+              </div>
+            </div>
+            <div class="table-wrap"><table class="data"><thead id="track-head"></thead><tbody id="track-body"></tbody></table></div>
           </div>
-          <span id="console-playlist" class="mini-pill">No playlist</span>
-        </div>
+        </section>
 
-        <details class="command-group" open>
-          <summary>Acquire Audio <span class="tip" tabindex="0" data-tip="Search for the real recording, match by duration, and download audio.">?</span></summary>
-          <form data-action="/api/fetch" id="fetch-form" class="command-form">
-            <div class="switch-row">
-              <label><input name="dry_run" type="checkbox" checked> Preview only</label>
-              <label><input name="no_suggest" type="checkbox"> Skip alternates</label>
+        <!-- EXPLORE -->
+        <section class="view" data-view="explore">
+          <div class="view-head"><p class="eyebrow">Slice &amp; dice</p><h1>Explore</h1><p>Pick a chart type, choose what goes on each axis, then pin the result to a dashboard. Nothing here is precomputed; every chart is built live from the stored facts.</p></div>
+          <div class="explore">
+            <div class="panel controls" id="explore-controls"></div>
+            <div class="panel canvas-wrap">
+              <div class="canvas-bar">
+                <input id="chart-title" type="text" placeholder="Name this chart">
+                <button class="btn btn-primary" id="pin-btn" type="button">Pin to dashboard</button>
+              </div>
+              <div class="panel-body"><div class="chart tall" id="explore-chart"></div></div>
             </div>
-            <textarea name="overrides_text" rows="4" placeholder="seq,url"></textarea>
-            <button type="submit">Find Audio</button>
-          </form>
-        </details>
+          </div>
+        </section>
 
-        <details class="command-group">
-          <summary>Analyze <span class="tip" tabindex="0" data-tip="Add lyrics and waveform-measured audio facts to the database.">?</span></summary>
-          <form data-action="/api/lyrics" class="command-form">
-            <label class="check"><input name="force" type="checkbox"> Force lyrics</label>
-            <button type="submit">Lookup Lyrics</button>
-          </form>
-          <form data-action="/api/mir" class="command-form">
-            <label class="check"><input name="force" type="checkbox"> Force audio analysis</label>
-            <button type="submit">Analyze Audio</button>
-          </form>
-        </details>
+        <!-- DASHBOARDS -->
+        <section class="view" data-view="dashboard">
+          <div class="view-head"><p class="eyebrow">Your views</p><h1>Dashboards</h1><p>Charts you pin from Explore live here, saved per playlist in this browser.</p></div>
+          <div class="dash-grid" id="dash-grid"></div>
+        </section>
 
-        <details class="command-group">
-          <summary>Separate Parts <span class="tip" tabindex="0" data-tip="Split a downloaded track into parts like drums, bass, vocals, and other.">?</span></summary>
-          <form data-action="/api/separate" class="command-form">
-            <div class="field-grid">
-              <input name="model" placeholder="htdemucs">
-              <input name="segment" placeholder="7.0">
-              <input name="two_stems" placeholder="vocals">
-              <input name="out" placeholder="./stems">
+        <!-- PIPELINE -->
+        <section class="view" data-view="pipeline">
+          <div class="view-head"><p class="eyebrow">Build the data</p><h1>Pipeline</h1><p>Import, fetch audio, look up lyrics, analyze structure, separate stems, and export. Long jobs run in the background and report below.</p></div>
+          <div class="pipe">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div class="panel stage">
+                <h3>Acquire audio <span class="hint" data-tip="Search for the real recording, match by duration, and download audio only.">?</span></h3>
+                <p class="hint">Find and download the real recording for each track.</p>
+                <form data-action="/api/fetch">
+                  <label class="check"><input name="dry_run" type="checkbox" checked> Preview only (no download)</label>
+                  <label class="check"><input name="no_suggest" type="checkbox"> Skip alternate-source suggestions</label>
+                  <textarea name="overrides_text" rows="3" placeholder="Manual pins, one per line:  seq,url"></textarea>
+                  <button class="btn btn-primary" type="submit">Find audio</button>
+                </form>
+              </div>
+              <div class="panel stage">
+                <h3>Analyze</h3>
+                <p class="hint">Add lyrics and waveform-measured facts.</p>
+                <form data-action="/api/lyrics" class="row" style="align-items:center;justify-content:space-between">
+                  <label class="check"><input name="force" type="checkbox"> Force re-lookup</label>
+                  <button class="btn" type="submit">Look up lyrics</button>
+                </form>
+                <form data-action="/api/mir" class="row" style="align-items:center;justify-content:space-between;margin-top:10px">
+                  <label class="check"><input name="force" type="checkbox"> Force re-analyze</label>
+                  <button class="btn" type="submit">Analyze audio (MIR)</button>
+                </form>
+              </div>
             </div>
-            <label class="check"><input name="force" type="checkbox"> Force separation</label>
-            <button type="submit">Separate Parts</button>
-          </form>
-        </details>
-
-        <details class="command-group">
-          <summary>Export <span class="tip" tabindex="0" data-tip="Write shareable CSV files and an HTML report for this playlist.">?</span></summary>
-          <form data-action="/api/export" class="command-form">
-            <input name="out" placeholder="./reports">
-            <button type="submit">Export Report</button>
-          </form>
-        </details>
-      </section>
-
-      <section class="console-block job-block">
-        <div class="jobs-head">
-          <h2>Jobs</h2>
-          <span id="job-count" class="mini-pill">0</span>
-        </div>
-        <div id="job-list" class="job-list"></div>
-      </section>
-    </aside>
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div class="panel stage">
+                <h3>Separate stems <span class="hint" data-tip="Split each track into drums, bass, vocals, other with Demucs. Heavy on CPU; run once.">?</span></h3>
+                <p class="hint">Split into drums, bass, vocals, other. Slow on CPU — run once, cached after.</p>
+                <form data-action="/api/separate">
+                  <div class="field-grid">
+                    <input class="input" name="model" placeholder="model (htdemucs)">
+                    <input class="input" name="segment" placeholder="segment (7.0)">
+                    <input class="input" name="two_stems" placeholder="two-stems (vocals)">
+                    <input class="input" name="out" placeholder="output dir">
+                  </div>
+                  <label class="check"><input name="force" type="checkbox"> Force re-separate</label>
+                  <button class="btn btn-primary" type="submit">Separate stems</button>
+                </form>
+              </div>
+              <div class="panel stage">
+                <h3>Export</h3>
+                <p class="hint">Write CSV files and an HTML report for this playlist.</p>
+                <form data-action="/api/export" class="row" style="align-items:center">
+                  <input class="input" name="out" placeholder="reports dir" style="flex:1">
+                  <button class="btn" type="submit">Export report</button>
+                </form>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h2>Jobs</h2><span class="pill none" id="job-count">0</span></div>
+                <div class="jobs" id="jobs"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
-  <script src="{{ url_for('static', path='/visuals.js') }}"></script>
-  <script src="{{ url_for('static', path='/app.js') }}"></script>
+
+  <div class="drawer-scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true"></aside>
+  <div id="tooltip" role="tooltip"></div>
+
+  <script src="{{ url_for('static', path='/vendor/echarts.min.js') }}"></script>
+  <script src="{{ url_for('static', path='/vendor/echarts-gl.min.js') }}"></script>
+  <script type="module" src="{{ url_for('static', path='/js/app.js') }}"></script>
 </body>
 </html>

@@ -47,6 +47,13 @@ def create_app(settings: Settings | None = None, runner: JobRunner | None = None
         payload["jobs"] = jobs.recent()
         return payload
 
+    @app.get("/api/track")
+    async def track(playlist: str, seq: int) -> dict[str, Any]:
+        try:
+            return actions.gui_track(cfg, playlist, seq)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/api/jobs")
     async def list_jobs() -> dict[str, Any]:
         return {"jobs": jobs.recent()}

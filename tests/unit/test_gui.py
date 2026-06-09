@@ -54,3 +54,9 @@ def test_gui_state_and_export_job_route(tmp_path):
     job = client.post("/api/export", data={"playlist": "GUI"}).json()
     assert job["action"] == "export"
     assert job["playlist"] == "GUI"
+
+    detail = client.get("/api/track?playlist=GUI&seq=1").json()
+    assert detail["seq"] == 1
+    assert detail["title"] == "GUI Song"
+    assert isinstance(detail["observations"], list)
+    assert client.get("/api/track?playlist=GUI&seq=99").status_code == 404
