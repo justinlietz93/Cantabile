@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,17 @@ from cantabile.shared.settings import Settings
 _HERE = Path(__file__).resolve().parent
 
 
+def _asset_version() -> str:
+    """Short token from the live JS/CSS mtimes, so a rebuilt app busts caches."""
+    digest = hashlib.sha1()
+    for rel in ("static/js/app.js", "static/css/app.css"):
+        try:
+            digest.update(str((_HERE / rel).stat().st_mtime_ns).encode())
+        except OSError:
+            pass
+    return digest.hexdigest()[:8]
+
+
 def create_app(settings: Settings | None = None, runner: JobRunner | None = None) -> FastAPI:
     """Build the local GUI app."""
 
@@ -27,10 +39,16 @@ def create_app(settings: Settings | None = None, runner: JobRunner | None = None
     app.state.settings = cfg
     app.state.jobs = jobs
 
-    reports_dir = Path(cfg.reports_dir)
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    reports_dir = Path(cfg.reports_dir).expanduser()
+    try:
+        reports_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # A bad/relative/unwritable path (e.g. a failing disk under the cwd)
+        # must not stop the GUI from starting. The dir is created lazily at
+        # export time instead.
+        pass
     app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
-    app.mount("/generated", StaticFiles(directory=reports_dir), name="generated")
+    app.mount("/generated", StaticFiles(directory=str(reports_dir), check_dir=False), name="generated")
     templates = Jinja2Templates(directory=_HERE / "templates")
 
     @app.get("/", response_class=HTMLResponse)
@@ -38,7 +56,7 @@ def create_app(settings: Settings | None = None, runner: JobRunner | None = None
         return templates.TemplateResponse(
             request=request,
             name="index.html",
-            context={"app_name": "Cantabile Analysis Studio"},
+            context={"app_name": "Cantabile Analysis Studio", "asset_v": _asset_version()},
         )
 
     @app.get("/api/state")

@@ -122,13 +122,50 @@ def fetch_playlist(
             suggest=not no_suggest,
             overrides=load_overrides(str(override_path) if override_path else None, None),
         )
-        log(f"{'Dry-running' if dry_run else 'Fetching'} {playlist.size} tracks")
-        outcomes = acquire_playlist(playlist, store, provider, suggesters, cfg)
+        verb = "Previewing" if dry_run else "Fetching"
+        log(f"{verb} {playlist.size} tracks")
+
+        def on_progress(oc) -> None:
+            tag = oc.confidence.name.lower()
+            if oc.url:
+                off = f" off {oc.delta}s" if oc.delta is not None else ""
+                log(f"{oc.seq:02d} {oc.title} [{tag}]{off} {oc.url}")
+            else:
+                extra = f" ({len(oc.suggestions)} suggestions)" if oc.suggestions else ""
+                log(f"{oc.seq:02d} {oc.title} [no match]{extra}")
+
+        outcomes = acquire_playlist(
+            playlist, store, provider, suggesters, cfg, on_progress=on_progress
+        )
         counts: dict[str, int] = {}
         for outcome in outcomes:
             counts[outcome.status or "unknown"] = counts.get(outcome.status or "unknown", 0) + 1
-        log("Fetch complete")
-        return {"playlist": playlist.name, "tracks": len(outcomes), "status_counts": counts}
+        matched = sum(1 for oc in outcomes if oc.url)
+        log(f"{'Preview' if dry_run else 'Fetch'} complete: {matched}/{len(outcomes)} matched")
+        preview = [
+            {
+                "seq": oc.seq,
+                "artist": oc.artist,
+                "title": oc.title,
+                "status": oc.status,
+                "confidence": oc.confidence.name.lower(),
+                "delta": oc.delta,
+                "url": oc.url,
+                "suggestions": [
+                    {"label": getattr(s, "title", str(s)), "url": getattr(s, "url", "")}
+                    for s in oc.suggestions
+                ],
+            }
+            for oc in outcomes
+        ]
+        return {
+            "playlist": playlist.name,
+            "tracks": len(outcomes),
+            "dry_run": dry_run,
+            "matched": matched,
+            "status_counts": counts,
+            "preview": preview,
+        }
     finally:
         store.close()
         if override_path is not None:

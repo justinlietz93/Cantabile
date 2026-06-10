@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v={{ asset_v }}">
 </head>
 <body>
   <div class="app">
@@ -122,59 +122,34 @@
 
         <!-- PIPELINE -->
         <section class="view" data-view="pipeline">
-          <div class="view-head"><p class="eyebrow">Build the data</p><h1>Pipeline</h1><p>Import, fetch audio, look up lyrics, analyze structure, separate stems, and export. Long jobs run in the background and report below.</p></div>
-          <div class="pipe">
-            <div style="display:flex;flex-direction:column;gap:16px">
-              <div class="panel stage">
-                <h3>Acquire audio <span class="hint" data-tip="Search for the real recording, match by duration, and download audio only.">?</span></h3>
-                <p class="hint">Find and download the real recording for each track.</p>
-                <form data-action="/api/fetch">
-                  <label class="check"><input name="dry_run" type="checkbox" checked> Preview only (no download)</label>
-                  <label class="check"><input name="no_suggest" type="checkbox"> Skip alternate-source suggestions</label>
-                  <textarea name="overrides_text" rows="3" placeholder="Manual pins, one per line:  seq,url"></textarea>
-                  <button class="btn btn-primary" type="submit">Find audio</button>
-                </form>
-              </div>
-              <div class="panel stage">
-                <h3>Analyze</h3>
-                <p class="hint">Add lyrics and waveform-measured facts.</p>
-                <form data-action="/api/lyrics" class="row" style="align-items:center;justify-content:space-between">
-                  <label class="check"><input name="force" type="checkbox"> Force re-lookup</label>
-                  <button class="btn" type="submit">Look up lyrics</button>
-                </form>
-                <form data-action="/api/mir" class="row" style="align-items:center;justify-content:space-between;margin-top:10px">
-                  <label class="check"><input name="force" type="checkbox"> Force re-analyze</label>
-                  <button class="btn" type="submit">Analyze audio (MIR)</button>
-                </form>
+          <div class="view-head"><p class="eyebrow">Build the data</p><h1>Pipeline</h1><p>A job graph, not a form. Each node is a step; the wires are the data flowing between them. Toggle which steps to include, select one to configure it, then run the whole pipeline and watch it flow.</p></div>
+          <div class="builder">
+            <div class="builder-toolbar">
+              <button class="btn btn-primary" id="run-pipeline" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run pipeline
+              </button>
+              <div class="run-progress"><span class="bar"><i id="run-bar" style="width:0%"></i></span><span class="muted" id="run-pct">0%</span></div>
+              <div class="legend">
+                <span><span class="lg-dot" style="background:var(--ok)"></span>done</span>
+                <span><span class="lg-dot" style="background:var(--audio)"></span>partial</span>
+                <span><span class="lg-dot" style="background:var(--teal)"></span>running</span>
+                <span><span class="lg-dot" style="background:var(--none)"></span>waiting</span>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:16px">
-              <div class="panel stage">
-                <h3>Separate stems <span class="hint" data-tip="Split each track into drums, bass, vocals, other with Demucs. Heavy on CPU; run once.">?</span></h3>
-                <p class="hint">Split into drums, bass, vocals, other. Slow on CPU — run once, cached after.</p>
-                <form data-action="/api/separate">
-                  <div class="field-grid">
-                    <input class="input" name="model" placeholder="model (htdemucs)">
-                    <input class="input" name="segment" placeholder="segment (7.0)">
-                    <input class="input" name="two_stems" placeholder="two-stems (vocals)">
-                    <input class="input" name="out" placeholder="output dir">
-                  </div>
-                  <label class="check"><input name="force" type="checkbox"> Force re-separate</label>
-                  <button class="btn btn-primary" type="submit">Separate stems</button>
-                </form>
+            <div class="builder-main">
+              <div class="canvas-pane"><div class="flow" id="flow"></div>
+                <div class="canvas-controls">
+                  <button class="czoom" id="zoom-out" type="button" title="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <span class="czoom-pct" id="zoom-pct">100%</span>
+                  <button class="czoom" id="zoom-in" type="button" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <button class="czoom" id="zoom-fit" type="button" title="Fit to view"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg></button>
+                </div>
               </div>
-              <div class="panel stage">
-                <h3>Export</h3>
-                <p class="hint">Write CSV files and an HTML report for this playlist.</p>
-                <form data-action="/api/export" class="row" style="align-items:center">
-                  <input class="input" name="out" placeholder="reports dir" style="flex:1">
-                  <button class="btn" type="submit">Export report</button>
-                </form>
-              </div>
-              <div class="panel">
-                <div class="panel-head"><h2>Jobs</h2><span class="pill none" id="job-count">0</span></div>
-                <div class="jobs" id="jobs"></div>
-              </div>
+              <aside class="inspector" id="inspector"></aside>
+            </div>
+            <div class="console" id="console">
+              <div class="console-bar" id="console-bar"><p class="eyebrow">Console</p><span class="pill none" id="job-count">0</span><span class="muted" style="margin-left:auto" id="console-toggle">hide</span></div>
+              <div class="console-body" id="jobs"></div>
             </div>
           </div>
         </section>
@@ -188,6 +163,6 @@
 
   <script src="{{ url_for('static', path='/vendor/echarts.min.js') }}"></script>
   <script src="{{ url_for('static', path='/vendor/echarts-gl.min.js') }}"></script>
-  <script type="module" src="{{ url_for('static', path='/js/app.js') }}"></script>
+  <script type="module" src="{{ url_for('static', path='/js/app.js') }}?v={{ asset_v }}"></script>
 </body>
 </html>

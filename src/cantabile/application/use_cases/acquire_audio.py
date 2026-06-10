@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from cantabile.application.services.match import (
     alt_queries, candidate_key, pick_best, rank_suggestions)
@@ -68,11 +68,17 @@ def acquire_playlist(
     provider: SourceProviderPort,
     suggesters: list[SuggesterPort],
     cfg: AcquireConfig,
+    on_progress: Optional[Callable[["TrackOutcome"], None]] = None,
 ) -> list[TrackOutcome]:
     cfg.out_dir.mkdir(parents=True, exist_ok=True)
     pad = max(3, len(str(playlist.size)))
     claimed: set[str] = set()
     outcomes: list[TrackOutcome] = []
+
+    def record(outcome: TrackOutcome) -> None:
+        outcomes.append(outcome)
+        if on_progress is not None:
+            on_progress(outcome)
 
     for entry in playlist.entries:
         track = store.get_track(entry.track_id)
@@ -85,7 +91,7 @@ def acquire_playlist(
 
         if not cfg.dry_run and store.get_asset(track.id) is not None:
             oc.status = "skipped-exists"
-            outcomes.append(oc)
+            record(oc)
             continue
 
         stem = cfg.out_dir / f"{seq:0{pad}d}_{_slug(track.primary_artist)}_-_{_slug(track.title)}"
@@ -98,7 +104,7 @@ def acquire_playlist(
             if found and target:
                 oc.delta = round(abs(found - target), 1)
             _finalize(track.id, url, oc, stem, target, store, provider, cfg)
-            outcomes.append(oc)
+            record(oc)
             continue
 
         # ---- search + match ---------------------------------------------- #
@@ -133,7 +139,7 @@ def acquire_playlist(
                 sug.extend(s.suggest(track.primary_artist, track.title, target))
             oc.suggestions = rank_suggestions(track.primary_artist, track.title, sug)[:3]
 
-        outcomes.append(oc)
+        record(oc)
         if not cfg.dry_run and best:
             time.sleep(cfg.sleep)
 
