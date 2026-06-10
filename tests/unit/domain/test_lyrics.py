@@ -18,7 +18,7 @@ pytest.importorskip("bs4")
 
 from cantabile.adapters.analyzers.lyrics import LyricsAnalyzer
 from cantabile.domain.models import Track
-from cantabile.domain.value_objects import Provenance, TrackId
+from cantabile.domain.value_objects import Confidence, Provenance, TrackId
 
 
 def test_lyrics_from_cache_emits_observation():
@@ -50,3 +50,17 @@ def test_instrumental_from_cache():
         analyzer = LyricsAnalyzer(cache_path=str(cache_path))
         obs = analyzer.analyze(track, None)
         assert obs and obs[0].value == "[instrumental]"
+
+
+def test_miss_records_not_found_marker():
+    track = Track(id=TrackId("spotify:track:11"), title="No Lyrics Here",
+                  artists=["Nobody"], duration_ms=120000)
+    with tempfile.TemporaryDirectory() as d:
+        cache_path = Path(d) / "cache.json"
+        key = "nobody|||no lyrics here||||120"
+        cache_path.write_text(json.dumps({key: {"lyrics": "", "source": ""}}), encoding="utf-8")
+        analyzer = LyricsAnalyzer(cache_path=str(cache_path))
+        obs = analyzer.analyze(track, None)
+        assert len(obs) == 1
+        assert obs[0].value == "[not found]"
+        assert obs[0].confidence is Confidence.NONE

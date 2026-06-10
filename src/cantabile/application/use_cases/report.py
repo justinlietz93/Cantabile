@@ -145,8 +145,11 @@ def _observation_dto(obs: Observation) -> ReportObservation:
 def _lyrics_status(lyrics: ResolvedFeature | None) -> str:
     if lyrics is None:
         return "missing"
-    if str(lyrics.value).strip().lower() == "[instrumental]":
+    value = str(lyrics.value).strip().lower()
+    if value == "[instrumental]":
         return "instrumental"
+    if value == "[not found]":
+        return "none"
     return "present" if str(lyrics.value).strip() else "empty"
 
 
@@ -174,6 +177,7 @@ def _summarize(rows: list[TrackReportRow]) -> PlaylistReportSummary:
         audio_assets=sum(1 for row in rows if row.has_audio),
         stemmed_tracks=sum(1 for row in rows if row.stems),
         lyrics_tracks=sum(1 for row in rows if row.lyrics_status in {"present", "instrumental"}),
+        lyrics_checked=sum(1 for row in rows if row.lyrics_status in {"present", "instrumental", "none"}),
         mir_tracks=sum(1 for row in rows if any(f in row.resolved for f in _MIR_FEATURES)),
         confidence_counts=dict(confidence),
         provenance_counts=dict(provenance),

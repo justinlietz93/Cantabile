@@ -151,25 +151,31 @@ const NW = 210, NH = 86;
 const NODES = [
   { id: "import", label: "Import", sub: "CSV \u2192 store", x: 24, y: 188, deps: [], chain: false, special: "import",
     covered: (s) => s.total_tracks, total: (s) => s.total_tracks, gate: () => null,
+    detail: (s) => `${s.total_tracks} tracks imported`,
     desc: "Bring a playlist in from an Exportify CSV. Tracks, order, and Spotify features land in the database.", fields: [] },
   { id: "fetch", label: "Acquire audio", sub: "/api/fetch", api: "/api/fetch", x: 290, y: 70, deps: ["import"], chain: true,
     covered: (s) => s.audio_assets, total: (s) => s.total_tracks, gate: (s) => (s.total_tracks ? null : "Import a playlist first"),
+    detail: (s) => `${s.audio_assets} downloaded of ${s.total_tracks}` + (s.total_tracks - s.audio_assets ? ` · ${s.total_tracks - s.audio_assets} to retry` : ""),
     desc: "Find and download the real recording for each track, matched by duration.",
     fields: [ { name: "dry_run", type: "check", label: "Preview only (no download)", def: true },
       { name: "no_suggest", type: "check", label: "Skip alternate-source suggestions" },
       { name: "overrides_text", type: "textarea", label: "Manual pins (seq,url per line)" } ] },
   { id: "lyrics", label: "Lyrics", sub: "/api/lyrics", api: "/api/lyrics", x: 290, y: 306, deps: ["import"], chain: true,
     covered: (s) => s.lyrics_tracks, total: (s) => s.total_tracks, gate: (s) => (s.total_tracks ? null : "Import a playlist first"),
+    complete: (s) => s.total_tracks > 0 && (s.lyrics_checked || 0) >= s.total_tracks,
+    detail: (s) => { const f = s.lyrics_tracks, c = s.lyrics_checked || 0; return `${f} found · ${c - f} none · ${s.total_tracks - c} not looked up`; },
     desc: "Look up lyrics (LRCLIB first, Genius fallback) and mark instrumentals.",
     fields: [ { name: "force", type: "check", label: "Force re-lookup" } ] },
   { id: "separate", label: "Separate stems", sub: "/api/separate", api: "/api/separate", x: 556, y: 70, deps: ["fetch"], chain: false,
-    covered: (s) => s.stemmed_tracks, total: (s) => s.total_tracks, gate: (s) => (s.audio_assets ? null : "Needs downloaded audio"),
+    covered: (s) => s.stemmed_tracks, total: (s) => s.audio_assets, gate: (s) => (s.audio_assets ? null : "Needs downloaded audio"),
+    detail: (s) => `${s.stemmed_tracks} of ${s.audio_assets} downloaded separated`,
     desc: "Split into drums, bass, vocals, other (Demucs). Heavy on CPU; off by default in a full run.",
     fields: [ { name: "model", type: "text", label: "Model", ph: "htdemucs" }, { name: "segment", type: "text", label: "Segment", ph: "7.0" },
       { name: "two_stems", type: "text", label: "Two-stems", ph: "vocals" }, { name: "out", type: "text", label: "Output dir" },
       { name: "force", type: "check", label: "Force re-separate" } ] },
   { id: "mir", label: "MIR analyze", sub: "/api/mir", api: "/api/mir", x: 822, y: 188, deps: ["fetch", "separate"], chain: true,
-    covered: (s) => s.mir_tracks, total: (s) => s.total_tracks, gate: (s) => (s.audio_assets ? null : "Needs downloaded audio"),
+    covered: (s) => s.mir_tracks, total: (s) => s.audio_assets, gate: (s) => (s.audio_assets ? null : "Needs downloaded audio"),
+    detail: (s) => `${s.mir_tracks} of ${s.audio_assets} downloaded analyzed`,
     desc: "Measure felt tempo, variability, sections, loop/line. Reads the drum stem if separated.",
     fields: [ { name: "force", type: "check", label: "Force re-analyze" } ] },
   { id: "export", label: "Export", sub: "/api/export", api: "/api/export", x: 980, y: 306, deps: ["mir", "lyrics"], chain: true,
@@ -192,7 +198,8 @@ function nodeState(n, s) {
   if (isRunning(n.id)) return "running";
   const c = n.covered(s), t = n.total(s);
   if (c == null) return "available";
-  if (t > 0 && c >= t) return "done";
+  const done = n.complete ? n.complete(s) : (t > 0 && c >= t);
+  if (done) return "done";
   if (c > 0) return "partial";
   return "todo";
 }
@@ -242,8 +249,14 @@ function renderPipeline() {
   const pane = document.querySelector(".canvas-pane");
   if (pane && pane.clientWidth > 0 && lastFitPlaylist !== playlist) { fitView(); lastFitPlaylist = playlist; }
 
-  const meas = ["fetch", "lyrics", "mir"].map((k) => nodeById[k]);
-  const pct = Math.round(meas.reduce((a, n) => a + (n.total(s) ? n.covered(s) / n.total(s) : 0), 0) / meas.length * 100);
+  // overall progress: fraction of work processed across the measurable stages,
+  // using each stage's real denominator (audio for MIR, looked-up for lyrics)
+  const ratios = [
+    s.total_tracks ? s.audio_assets / s.total_tracks : 0,            // fetch
+    s.total_tracks ? (s.lyrics_checked || 0) / s.total_tracks : 0,   // lyrics (looked up)
+    s.audio_assets ? s.mir_tracks / s.audio_assets : 0,             // mir (of downloaded)
+  ];
+  const pct = Math.round(ratios.reduce((a, r) => a + r, 0) / ratios.length * 100);
   if ($("#run-bar")) { $("#run-bar").style.width = `${pct}%`; $("#run-pct").textContent = `${pct}%`; }
   const runBtn = $("#run-pipeline"); if (runBtn) runBtn.disabled = !playlist || chainRunning;
 
@@ -258,9 +271,10 @@ function renderInspector() {
   const n = selectedNode ? nodeById[selectedNode] : null;
   if (!n || !s) { insp.innerHTML = `<div class="insp-empty">Select a step on the canvas to configure and run it.</div>`; return; }
   const st = nodeState(n, s), gate = n.gate(s), cov = n.covered(s), tot = n.total(s);
+  const detail = n.detail ? n.detail(s) : (cov == null ? "Runs on demand." : `${cov} / ${tot}`);
   const statLine = cov == null
-    ? `<div class="insp-stat">Runs on demand.</div>`
-    : `<div class="insp-stat"><span>${cov} / ${tot}</span><span class="bar"><i style="width:${tot ? Math.round(cov / tot * 100) : 0}%"></i></span></div>`;
+    ? `<div class="insp-stat">${esc(detail)}</div>`
+    : `<div class="insp-stat"><span>${esc(detail)}</span><span class="bar"><i style="width:${tot ? Math.round(cov / tot * 100) : 0}%"></i></span></div>`;
   const gateLine = gate ? `<div class="gate"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>${esc(gate)}</div>` : "";
   let fields = "";
   if (n.special === "import") {

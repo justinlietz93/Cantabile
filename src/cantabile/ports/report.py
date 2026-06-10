@@ -77,6 +77,7 @@ class PlaylistReportSummary:
     stemmed_tracks: int
     lyrics_tracks: int
     mir_tracks: int
+    lyrics_checked: int = 0
     confidence_counts: dict[str, int] = field(default_factory=dict)
     provenance_counts: dict[str, int] = field(default_factory=dict)
     structure_counts: dict[str, int] = field(default_factory=dict)

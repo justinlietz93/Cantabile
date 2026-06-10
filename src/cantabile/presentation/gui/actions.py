@@ -189,8 +189,18 @@ def analyze_lyrics(playlist_name: str, settings: Settings, force: bool, log: Log
             [LyricsAnalyzer(insecure=settings.insecure)],
             force=force,
         )
-        found = sum(1 for item in outcomes if item.results.get("lyrics", 0) > 0)
-        return {"playlist": playlist.name, "tracks": len(outcomes), "found": found}
+        summary = build_playlist_report(playlist, store).summary
+        found, checked, total = summary.lyrics_tracks, summary.lyrics_checked, summary.total_tracks
+        none, pending = checked - found, total - checked
+        log(f"Lyrics: {found} found, {none} none, {pending} not looked up")
+        return {
+            "playlist": playlist.name,
+            "tracks": len(outcomes),
+            "found": found,
+            "checked": checked,
+            "none": none,
+            "pending": pending,
+        }
     finally:
         store.close()
 
@@ -206,8 +216,14 @@ def analyze_mir(playlist_name: str, settings: Settings, force: bool, log: LogFn)
         playlist = _playlist_or_raise(store, playlist_name)
         log(f"Analyzing audio structure for {playlist.size} tracks")
         outcomes = analyze_playlist(playlist, store, [MIRAnalyzer()], force=force)
-        done = sum(1 for item in outcomes if item.results.get("mir", 0) > 0)
-        return {"playlist": playlist.name, "tracks": len(outcomes), "analyzed": done}
+        summary = build_playlist_report(playlist, store).summary
+        log(f"MIR: {summary.mir_tracks} analyzed of {summary.audio_assets} downloaded")
+        return {
+            "playlist": playlist.name,
+            "tracks": len(outcomes),
+            "analyzed": summary.mir_tracks,
+            "audio": summary.audio_assets,
+        }
     finally:
         store.close()
 
@@ -240,8 +256,16 @@ def separate_stems(
         out_dir = Path(out or settings.stems_dir)
         log(f"Separating {playlist.size} tracks with {separator.model} on {separator.device}")
         outcomes = separate_playlist(playlist, store, separator, out_dir, force=force)
+        summary = build_playlist_report(playlist, store).summary
         done = sum(1 for item in outcomes if item.status == "separated")
-        return {"playlist": playlist.name, "tracks": len(outcomes), "separated": done}
+        log(f"Stems: {summary.stemmed_tracks} of {summary.audio_assets} downloaded")
+        return {
+            "playlist": playlist.name,
+            "tracks": len(outcomes),
+            "separated": done,
+            "stemmed": summary.stemmed_tracks,
+            "audio": summary.audio_assets,
+        }
     finally:
         store.close()
 

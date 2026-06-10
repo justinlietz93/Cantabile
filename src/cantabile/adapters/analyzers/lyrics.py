@@ -73,7 +73,13 @@ class LyricsAnalyzer:
 
         text, source = entry.get("lyrics") or "", entry.get("source") or ""
         if not text or not source:
-            return []   # genuine miss: store nothing, the cache remembers we tried
+            # Genuine miss: record that we checked, at the lowest trust so it
+            # never shadows a real lyric. Lets the report distinguish
+            # "looked up, none found" from "not yet looked up", and makes
+            # plain reruns skip it instead of re-querying forever.
+            return [Observation(track_id=track.id, feature="lyrics", value="[not found]",
+                                source=Provenance.LYRICS_LRCLIB, confidence=Confidence.NONE,
+                                analyzer_version="lyrics/1")]
         prov = Provenance.LYRICS_LRCLIB if source == "lrclib" else Provenance.LYRICS_GENIUS
         conf = Confidence.MEDIUM if text == "[instrumental]" else Confidence.HIGH
         return [Observation(track_id=track.id, feature="lyrics", value=text,
