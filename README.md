@@ -1,4 +1,6 @@
-# Cantabile
+<img width="1774" height="887" alt="cantabile_banner" src="https://github.com/user-attachments/assets/30c5114e-93aa-4280-a9a6-4460908b848a" />
+
+---
 
 Cantabile turns a Spotify playlist into a trustworthy, analyzable library of the
 real recordings. You export a playlist to CSV, Cantabile imports it, finds and
