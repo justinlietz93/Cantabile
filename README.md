@@ -9,7 +9,7 @@ database you can build analysis on top of.
 
 It exists because Spotify's own numbers lie to you. Spotify describes each song
 with nine scalar "audio features" (tempo, energy, valence, and so on). Those are
-a lossy projection. On at least one real track the reported tempo was off by
+a lossy projection. On at least one real tested track the reported tempo was off by
 half again the felt tempo. So Cantabile keeps the Spotify numbers but treats
 them as the least trustworthy source, and is built to replace them with values
 measured from the waveform itself.
