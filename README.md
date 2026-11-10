@@ -1,4 +1,4 @@
-<img width="1774" height="887" alt="cantabile_banner" src="https://github.com/user-attachments/assets/30c5114e-93aa-4280-a9a6-4460908b848a" />
+<img width="1774" height="887" alt="image" src="https://github.com/user-attachments/assets/947b5d3f-b121-4d60-b689-7fd6d3e30ba9" />
 
 ---
 
