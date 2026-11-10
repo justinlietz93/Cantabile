@@ -1,349 +1,254 @@
 <img width="1774" height="887" alt="image" src="https://github.com/user-attachments/assets/947b5d3f-b121-4d60-b689-7fd6d3e30ba9" />
 
----
+**A local music library and analysis workbench built around recordings, not just playlist metadata.**
 
-Cantabile turns a Spotify playlist into a trustworthy, analyzable library of the
-real recordings. You export a playlist to CSV, Cantabile imports it, finds and
-downloads the actual audio for each track, and stores everything in one local
-database you can build analysis on top of.
+> [!WARNING]
+> **Cantabile is in active development and is unfinished.** This repository is experimental software, not a stable or fully validated music-analysis product. Some workflows work today; others have known correctness defects or still exist only on the roadmap. Back up your data, inspect downloaded recordings, and treat analysis results as estimates rather than verified musical facts.
 
-It exists because Spotify's own numbers lie to you. Spotify describes each song
-with nine scalar "audio features" (tempo, energy, valence, and so on). Those are
-a lossy projection. On at least one real tested track the reported tempo was off by
-half against the felt tempo metric. Cantabile keeps the Spotify numbers but treats
-them as the least trustworthy source, and is built to replace them with values
-measured from the waveform itself.
+**Version and release status (10 November 2026):**
 
----
+- **This repository:** `0.1.0` — the source-based CLI and local browser GUI described below.
+- **Next desktop build:** `0.2.0` — a separately developed **unreleased / pre-release** Linux desktop build. A package and substantial validation work are documented, but **that code and installer are not contained in this repository snapshot**.
+- **Last documented 0.2.0 progress report:** 20 September 2026. The remaining acceptance work is listed [below](#upcoming-020-desktop-build--progress). No public release date is confirmed here.
 
-## What it does today
+[Get started](#quick-start--current-repository) · [Capabilities](#what-works-in-this-repository) · [Known limitations](#known-limitations) · [Upcoming desktop build](#upcoming-020-desktop-build--progress) · [Roadmap](#long-term-roadmap)
 
-- **Imports an Exportify CSV** into a local SQLite database: the tracks, the
-  playlist order, and Spotify's nine audio features (stored as low-trust facts).
-- **Finds the real recording** for each track on YouTube and downloads
-  audio only (the video is discarded during extraction).
-- **Matches by duration**, not just title, so it grabs the studio cut and not a
-  live version, a remix, or a one-hour loop. It picks the candidate whose length
-  is closest to Spotify's duration for that track.
-- **Tells cover artists apart.** If two playlist entries are both "Abyss
-  Watchers" by different YouTube artists, it matches each to its own channel
-  instead of grabbing the same video twice.
-- **Refuses duplicates.** No two tracks in a run can resolve to the same video.
-- **Rates each match** high / medium / low so you know which ones to eyeball.
-- **Suggests alternates** for weak matches by searching SoundCloud (which gives
-  real durations) and Bandcamp (which finds self-released artists that never
-  reached YouTube). Suggestions print as paste-ready override lines.
-- **Lets you pin a source by hand** (an override) for any track, using any
-  site yt-dlp supports: YouTube, Bandcamp, or SoundCloud.
-- **Is resumable.** Rerun it and it skips tracks already downloaded.
-- **Names files in playlist order**, zero-padded and ASCII-safe, so they sort
-  correctly and never break on non-Latin characters.
-- **Looks up lyrics** for every track (LRCLIB first, Genius as fallback) and
-  stores them as Observations, marking instrumentals and caching results so
-  reruns are instant.
-- **Measures structure from the audio** (MIR): felt tempo, how much the tempo
-  breathes, section count, and whether a piece loops or runs as a line. The
-  felt tempo is stored as a high-trust `tempo` Observation, so it overrides
-  Spotify's often-wrong number automatically.
-- **Separates tracks into stems** (Demucs): drums, bass, vocals, other. When
-  stems exist, MIR reads tempo off the drum stem and harmonic structure off the
-  instrument stem, so a steady kick under a rubato lead no longer smears the
-  measurement.
-- **Exports reports** as CSV plus a polished local HTML report from the same
-  resolved Observation view used by the app.
-- **Runs a local browser GUI** for import, fetch, lyrics, MIR, separation, and
-  export workflows without changing the domain/application architecture.
+## What Cantabile is for
 
----
+A playlist export describes *which tracks* you saved. Cantabile aims to connect that catalog to *which recordings* were actually acquired and *what can be measured from their audio*.
 
-## How it works
+The intended workflow is:
 
-Think of it as three stages over one database.
+```text
+Playlist CSV
+    │
+    ▼
+Track catalog + original metadata  ───────►  SQLite database
+    │                                             ▲
+    ▼                                             │
+Review source candidates → Acquire audio         │
+    │                                             │
+    ├──► Lyrics lookup ───────────────────────────┤
+    ├──► Waveform/MIR analysis ───────────────────┤
+    └──► Optional stem separation ─► MIR ─────────┘
+                                                  │
+                                                  ▼
+                                        Local GUI and reports
+```
 
-**1. Import.** You point Cantabile at an Exportify CSV. It reads every track,
-its position in the playlist, and its Spotify features, and writes them to the
-database. Each track is identified by its Spotify URI, so the same song is
-recognized across all your playlists. Every Spotify feature is stored as an
-*Observation*: a single fact (`tempo = 160`) tagged with where it came from
-(`spotify`) and how much to trust it (low).
+Measurements and imported metadata are kept as separate **Observations**, each labeled with a source and confidence category. The database can retain multiple values for the same feature instead of deleting an older estimate. This is a foundation for evidence-based analysis, **not a guarantee that a chosen source or measured result is correct**.
 
-**2. Fetch.** For each track in order, Cantabile searches YouTube, scores the
-results, and downloads the best one. Scoring is mostly "how close is this
-video's length to Spotify's length," nudged by whether the channel name matches
-the track's artist, and pushed down if the title looks like a live cut or loop.
-The chosen video is recorded as an *AudioAsset* (where the file is, what URL it
-came from, how confident the match was), and its measured length is stored as a
-high-trust Observation.
+## What works in this repository
 
-**3. Analyze (coming).** Analyzers read the downloaded audio and write more
-Observations: a felt tempo measured from the waveform, a section count, a
-loop-vs-line score. Because an audio-measured tempo outranks Spotify's, anything
-that later asks the database for "the tempo" gets the real one automatically,
-while Spotify's wrong number stays on record for comparison.
+The table describes **the attached `0.1.0` source**, not features built separately for the upcoming desktop version.
 
-The database is the source of truth. CSV is only how data gets in (import) and,
-later, out (export). Audio files live on disk; the database holds the facts.
+| Component | Current state | What it does |
+|---|---|---|
+| Playlist import | Implemented | Reads Exportify-style CSVs, preserves playlist order and stores track metadata and available numeric Spotify features in SQLite. |
+| Audio acquisition | Implemented, with matching defects | Searches YouTube through `yt-dlp`, previews candidates and downloads selected audio. Supports source suggestions and manual URL overrides, with limitations below. |
+| Lyrics | Implemented, experimental | Retrieves text through LRCLIB with optional Genius fallback and caches results. Not time-aligned. |
+| Basic MIR | Implemented, heuristic | Estimates tempo, tempo variation/range, section count and a loop/line proxy from audio. |
+| Stem separation | Implemented, resource-intensive | Invokes Demucs for vocals, drums, bass and other; can be run on CPU. |
+| Local database | Implemented | Persists tracks, playlists, audio-asset references, stems and observations in SQLite. |
+| Reports | Implemented | Exports resolved track data, raw observations and an HTML report. |
+| Browser interface | Implemented | Local FastAPI interface for inspecting data and running core workflows. **Not a packaged native desktop app in this checkout.** |
+| Time-aligned musical structure | Not implemented | Precise section boundaries, named form labels, tempo maps and cross-section comparisons. |
+| Full multilayer AI system | Not implemented | Embeddings, semantic audio search, vocal/lyrical interpretation, note/chord transcription, scores and tablature. |
 
-### Confidence levels
+### A note on accuracy
 
-| Level | Meaning |
-|-------|---------|
-| `high` | Found a video within the tolerance window (default 7s) of Spotify's length |
-| `medium` | Within 3x tolerance, or no Spotify duration to anchor on |
-| `low` | Further off; review before trusting |
-| `none` | No candidate found at all |
-| `override` | You pinned this source by hand |
+Spotify's reported features are retained as metadata, not accepted as ground truth. Cantabile prioritizes waveform-derived observations over Spotify-origin observations when resolving some features. But this is currently a **source-priority rule**, not a calibrated estimate of correctness. A misidentified recording can produce convincing but irrelevant measurements; rhythm estimators can also return half-time or double-time interpretations.
 
----
+## Quick start — current repository
 
-## Install
+### Requirements
+
+- Python **3.10 or newer**.
+- **FFmpeg** installed and available on `PATH` (`ffmpeg -version` should work).
+- A supported playlist CSV for importing. An internet connection is needed for source search, audio download and online lyrics lookup.
+- Free storage for audio. Demucs and its dependencies require substantially more disk space and RAM than basic import/export.
+
+Use a virtual environment from the extracted repository directory:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .                 # core (import + fetch)
-pip install -e ".[all]"          # + lyrics, audio, separation, and GUI
-pip install -e ".[all,dev]"      # + every feature plus governance/test tools
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[gui,lyrics,audio]'
 ```
 
-`ffmpeg` must be on your PATH (it extracts the audio):
-macOS `brew install ffmpeg`, Debian/Ubuntu `sudo apt install ffmpeg`,
-Windows `winget install ffmpeg`.
-
----
-
-## Using it
-
-### Import a playlist
+The last command installs the browser GUI, lyrics adapters and basic waveform-analysis dependencies. **Demucs is optional**; install it only if you need stem separation:
 
 ```bash
-cantabile import inputs/Dominion.csv
+python -m pip install -e '.[separation]'
 ```
 
-Reads the CSV into the database. Prints how many tracks landed. Run it for as
-many playlists as you like; they all share one database.
+On Debian/Ubuntu, FFmpeg can typically be installed with `sudo apt install ffmpeg`. Heavy audio dependencies may need platform-specific setup.
 
-### Fetch the audio
+### 1. Import your CSV
+
+Export a playlist in Exportify-compatible CSV format. For a file named `playlist.csv`:
 
 ```bash
-# preview only: shows matches and suggestions, downloads nothing
-cantabile fetch --playlist Dominion --dry-run
-
-# import and fetch in one step
-cantabile fetch --csv inputs/Dominion.csv
-
-# fetch a playlist you already imported
-cantabile fetch --playlist Dominion
+cantabile import /path/to/playlist.csv
 ```
 
-Always dry-run first. Read the output, eyeball anything marked `low` or
-`medium`, then run for real.
+The playlist is stored under the filename stem, here `playlist`. Expected columns include a track title and artist; Spotify URI, album, duration and audio-feature columns are used when supplied.
 
-Each line of output looks like:
-
-```
-[ 10/58] high     ( +0.4s) RichaadEB - Abyss Watchers  downloaded
-```
-
-That is: track 10 of 58, a high-confidence match, the chosen video is 0.4s off
-Spotify's length, and the file was downloaded.
-
-### Fix the ones it got wrong
-
-For weak matches, Cantabile prints suggestions you can paste straight into an
-overrides file:
-
-```
-  # 39 No Oath - Carbon Plague  (low)
-      39,https://nooath.bandcamp.com/track/carbon-plague   # bandcamp: No Oath - Carbon Plague [duration unverified]
-```
-
-Put good lines in a file (see `overrides.example.csv`) and rerun:
+### 2. Preview proposed recordings
 
 ```bash
-cantabile fetch --playlist Dominion --overrides overrides.csv
+cantabile fetch --playlist playlist --dry-run
 ```
 
-Or pin one inline without a file:
+**Review the artist, title, duration difference and URL before downloading.** A `high` confidence label currently means that the candidate met the duration-based matching rule; it does **not** confirm the track's identity, mix or release version. The source matcher has a known wrong-song failure described below.
+
+Once you've reviewed the proposed sources:
 
 ```bash
-cantabile fetch --playlist Dominion --override 10=https://youtu.be/PYEVWZTv_ZY
+cantabile fetch --playlist playlist
 ```
 
-An override accepts any yt-dlp-supported URL, so a Bandcamp or SoundCloud link
-works for tracks that aren't on YouTube.
-
-### Look up lyrics
+To explicitly supply a source for playlist position 10:
 
 ```bash
-cantabile lyrics --playlist Dominion           # LRCLIB, with Genius if a token is set
-cantabile lyrics --csv inputs/Dominion.csv      # import + look up in one step
-cantabile lyrics --playlist Dominion --force    # re-fetch even if already stored
+cantabile fetch --playlist playlist --override '10=https://example.com/recording'
 ```
 
-For each track it tries LRCLIB (exact match on artist/title/album/duration,
-then a fuzzy search), and falls back to Genius if you set a `GENIUS_TOKEN`.
-Instrumentals are marked, results are cached to a JSON file so reruns are
-instant, and tracks that already have lyrics are skipped unless you pass
-`--force`. Lyrics land in the database as Observations tagged with their
-source (lrclib or genius), not in a CSV column.
+Manual overrides are reliable for entries without a saved asset, **but this version may skip an existing asset before applying a new override**. Do not assume an override corrected a previously downloaded wrong recording; verify the saved source. A `--overrides` file can also contain `seq,url` lines (see `overrides.example.csv`).
 
-To enable Genius fallback, get a free token from the Genius API and set it:
+### 3. Retrieve lyrics and analyze audio
 
 ```bash
-export GENIUS_TOKEN="your_token"
+cantabile lyrics --playlist playlist
+cantabile mir --playlist playlist
 ```
 
-### Analyze audio (MIR)
-
-Once a playlist's audio is fetched, measure its structure from the waveform:
+Lyrics are retrieved from LRCLIB, with an optional Genius fallback when `GENIUS_TOKEN` is configured. MIR requires downloaded audio and records approximate waveform-derived features. If you replace audio or want new results to supersede an earlier analysis, you may need `--force`:
 
 ```bash
-cantabile mir --playlist Dominion           # analyze fetched audio
-cantabile mir --playlist Dominion --force    # re-analyze even if already done
+cantabile mir --playlist playlist --force
 ```
 
-For each track with audio it stores: `felt_tempo` and a competing `tempo`
-(both audio-provenance, so the resolver returns these over Spotify's),
-`tempo_variability` (how much the pulse breathes), `tempo_min`/`tempo_max`,
-`section_count`, a `loop_score`, and a `structure` value of `loop` or `line`.
-Tracks without fetched audio are skipped. Needs the audio extra
-(`pip install -e ".[audio]"`) and ffmpeg.
-
-If you've separated stems first (see below), MIR automatically reads tempo from
-the drum stem and structure from the instrument stem, which is more accurate
-for dense or polyrhythmic music.
-
-### Separate into stems
-
-Split each fetched track into drums, bass, vocals, and other, using Demucs:
+### 4. Optional: separate stems
 
 ```bash
-cantabile separate --playlist Dominion
-cantabile separate --playlist Dominion --two-stems vocals   # lighter: vocals/no_vocals
-cantabile separate --playlist Dominion --out /mnt/bigdrive/cantabile_stems
+cantabile separate --playlist playlist --out /path/to/large-drive/stems
+cantabile mir --playlist playlist --force
 ```
 
-This is the heavy stage. It needs the separation extra (`pip install -e
-".[separation]"`, which pulls PyTorch) and ffmpeg. Read this before running it:
+Demucs can be slow and memory-hungry on CPU-only machines. Start with a short recording before running a large playlist. **Use `mir --force` after separation in this repository**: the ordinary MIR skip rule does not reliably detect newly added stems.
 
-- **CPU-only unless you have an NVIDIA GPU.** On an integrated GPU it runs on
-  the CPU, a few minutes per track. A full playlist is an overnight job. It's
-  cached hard, so you pay the cost once; rerun only adds new tracks.
-- **Watch your RAM.** On an 8 GB machine, close other apps and keep the default
-  small `--segment` (lower it further if you hit swap thrash). Each chunk is
-  processed separately to cap peak memory.
-- **Put stems on a big drive.** They're large even as FLAC. Set
-  `CANTABILE_STEMS_DIR` (or `--out`) to an external drive, never the system disk.
-
-After separating, rerun `cantabile mir` and it will analyze from the stems.
-
-### Export CSVs and an HTML report
+### 5. Open the interface or export results
 
 ```bash
-cantabile export --playlist Dominion
-cantabile export --playlist Dominion --out /mnt/reports
-```
-
-The export creates a playlist folder containing `tracks.csv`,
-`observations.csv`, and `report.html`. The track CSV contains the resolved
-trusted value for each observed feature; the observations CSV keeps the raw
-source facts.
-
-### Run the GUI
-
-```bash
-cantabile gui
+cantabile gui                         # local browser GUI
 cantabile gui --port 8770 --no-open
+cantabile export --playlist playlist
 ```
 
-The GUI is local-only by default at `127.0.0.1:8765`. It uses the same store,
-use cases, and report/export path as the CLI.
+The GUI defaults to `http://127.0.0.1:8765`. Reports go under `./reports` by default and contain `tracks.csv`, `observations.csv` and `report.html` for the chosen playlist.
 
-### fetch flags
+For the full command syntax, run `cantabile --help` or `cantabile <command> --help`.
 
-| Flag | Meaning |
-|------|---------|
-| `--csv PATH` | Import this CSV, then fetch it |
-| `--playlist NAME` | Fetch a playlist already in the database |
-| `--dry-run` | Match and suggest only; download nothing |
-| `--no-suggest` | Skip the Bandcamp/SoundCloud suggestion pass |
-| `--overrides PATH` | A CSV of `seq,url` pins |
-| `--override SEQ=URL` | A single inline pin (repeatable) |
+## Storage and configuration
 
----
+Copy `.env.example` to `.env` to change defaults. In **this source checkout**, paths are relative to your working directory unless you specify absolute locations.
 
-## Configuration
+| Variable | Default | Purpose |
+|---|---|---|
+| `CANTABILE_DB` | `cantabile.db` | SQLite database path |
+| `CANTABILE_OUTPUT` | `./audio` | Downloaded audio |
+| `CANTABILE_REPORTS_DIR` | `./reports` | CSV/HTML reports |
+| `CANTABILE_STEMS_DIR` | `./stems` | Demucs outputs; use a drive with ample space |
+| `CANTABILE_FORMAT` | `wav` | Download conversion format |
+| `CANTABILE_TOLERANCE` | `7.0` | Duration difference (seconds) used for a high-confidence match |
+| `CANTABILE_SEARCH_COUNT` | `6` | Source candidates requested per search |
+| `CANTABILE_DEMUCS_MODEL` | `htdemucs` | Separation model |
+| `CANTABILE_DEMUCS_DEVICE` | `cpu` | Separation device |
+| `GENIUS_TOKEN` | unset | Optional lyrics fallback |
 
-Everything else is set by environment variables, or a `.env` file in the project
-root (copy `.env.example`). These are read once at startup.
+Additional settings are listed in `.env.example`, including cookies, proxy, TLS handling and separation format/segment options.
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `CANTABILE_DB` | `cantabile.db` | the database file (your source of truth) |
-| `CANTABILE_OUTPUT` | `./audio` | where downloaded audio folders go |
-| `CANTABILE_FORMAT` | `wav` | `wav`/`flac` lossless (best for analysis), or `mp3`/`m4a`/`opus` |
-| `CANTABILE_TOLERANCE` | `7.0` | seconds of length drift still counted "high" |
-| `CANTABILE_SEARCH_COUNT` | `6` | YouTube candidates considered per track |
-| `CANTABILE_SLEEP` | `1.0` | seconds between downloads (politeness) |
-| `CANTABILE_REPORTS_DIR` | `./reports` | where report/export bundles are written |
-| `CANTABILE_INSECURE` | `false` | skip TLS verification (only for self-signed proxies) |
-| `CANTABILE_COOKIES` | | path to a cookies.txt for age/region-restricted videos |
-| `CANTABILE_PROXY` | | proxy URL |
+**Backups:** keep a copy of `cantabile.db` **and** the audio/stem directories. SQLite stores file references, not embedded recordings. Close the app before making a simple filesystem copy of its database.
 
----
+**Audio formats:** saving YouTube audio as WAV or FLAC does **not** restore information lost in the source stream. Conversion can yield an uncompressed or losslessly encoded file, but the original online stream may already be lossy.
 
-## Where your data lives
+**Privacy:** the database, analysis results and reports are stored locally in this version. Source searches, downloads and lyrics retrieval contact third-party services when you invoke them. Cantabile is not an offline-only product.
 
-- **`cantabile.db`** — the SQLite database. Tracks, playlists, Observations,
-  and audio assets. This is the thing to back up. You can open it with any
-  SQLite browser and query it directly.
-- **`audio/<PlaylistName>/`** — the numbered audio files, e.g.
-  `001_Miracle_Of_Sound_-_Forever_Flame.wav`.
-- **`reports/<PlaylistName>/`** — CSV and HTML report bundles.
+## Known limitations
 
-The database has six tables: `tracks`, `playlists`, `playlist_entries`
-(the ordering), `observations` (every fact with its source and confidence), and
-`assets` (one downloaded file per track), plus `stems`.
+These are concrete issues in the current `0.1.0` checkout. They are not evidence that every corresponding bug remains in the separate `0.2.0` development build.
 
----
+| Area | Known limitation | Consequence |
+|---|---|---|
+| Recording selection | Candidate scoring does not adequately validate the intended **track title**; channel/artist and duration can dominate. | A different song of similar length can be selected with `high` confidence. |
+| Fallback search | Alternate query strings are prepared but not passed correctly to the provider. | Fallback searches can repeat the primary search. |
+| Manual correction | Existing assets are skipped before a new override is processed. | Previously downloaded mistakes may resist correction. |
+| Analysis freshness | MIR results are not tied to exact audio/stem revisions. | Existing results can remain after the input changes. |
+| Completeness checks | A recorded stem can mark separation as already complete; stored asset paths are not always verified. | Missing or partial files may appear available. |
+| Evidence/trust | Resolver priority is based on source type and recency rather than complete evidence validity. | A low-confidence measurement can outrank higher-confidence metadata. |
+| Structure measures | `loop_score` is a raw statistical proxy, and `section_count` lacks timestamped boundaries or labels. | Do not interpret these outputs as calibrated probabilities or a full song-form analysis. |
+| Validation | Offline tests cover selected units but do not prove correct matching, real-world acoustic accuracy or full end-to-end behavior. | Verify results on recordings you know. |
 
-## Troubleshooting
+This project is suited to experimentation and development. It is **not suitable for unattended, high-confidence labeling of a music library** at the current revision.
 
-- **`ffmpeg not found`** — install it and make sure it's on PATH.
-- **TLS / certificate errors** — only on networks with a self-signed proxy; set
-  `CANTABILE_INSECURE=true`.
-- **"Sign in to confirm you're not a bot"** — YouTube is rate-limiting your IP.
-  Export a cookies.txt from your browser and set `CANTABILE_COOKIES`.
-- **A track isn't on YouTube** (small self-released artists) — it'll match
-  poorly. Check the Bandcamp suggestion and pin it as an override.
-- **Wrong recording pulled** — lower `CANTABILE_TOLERANCE`, or pin the correct
-  URL as an override.
+## Upcoming 0.2.0 desktop build — progress
 
----
+A **separate 0.2.0 development package** advances Cantabile beyond this source-only `0.1.0` snapshot. The status below is from its **20 September 2026 validation record**. It describes engineering work performed on that build, **not functionality installed from this repository ZIP**.
 
-## Architecture (the short version)
+| Workstream | Last documented progress |
+|---|---|
+| Native Linux application | **Built and tested offscreen:** native Qt/pywebview window, launcher/icon, frozen executable and `.deb` package. Target platforms are Ubuntu 24.04 / Linux Mint 22, x86-64. |
+| Persistent application state | **Implemented and tested:** saved paths and profiles, serialized jobs, logs, retry/cancellation, interrupted-job recovery and previous-database migration. |
+| Library and acquisition | **Implemented and tested in controlled cases:** Spotify PKCE import, CSV import, preservation of imported lyrics, source override/refetch cases and source-job dispatch. Live provider acceptance is still required. |
+| MIR and Demucs | **Executed in validation:** CPU analysis runtime setup, synthetic-audio MIR and a real four-stem Demucs run on a 12-second synthetic recording; MIR reran after stems changed. |
+| Engineering checks | **Recorded passing:** 32 offline unit/integration tests, five dependency-direction contracts, Ruff, MyPy and the source-size gate. |
+| Release acceptance | **Still open in the last record:** a clean install/upgrade/remove on the target desktop, live Spotify/YouTube workflows, external-drive unplug/recovery, real music accuracy and representative CPU/RAM benchmarking. |
 
-Cantabile is a Standards-Governed Hexagonal Monolith. A pure core (the data
-model and rules) sits behind ports (contracts); concrete things like YouTube and
-SQLite are adapters that plug into those ports; the CLI is a thin shell on top.
-The one rule is that dependencies point inward, and it's enforced mechanically:
-`lint-imports` fails the build if any inner layer reaches outward. That's what
-lets the tool grow a GUI and new analyzers later without a rewrite.
+The **installer and test results existed** in the September development package; this document does not claim that 0.2.0 has been publicly published or that those remaining checks were completed afterward. The goal of the next release is a usable native desktop foundation, **not completion of the full AI analysis roadmap**. No Windows or macOS installer is documented for this build.
+
+## Long-term roadmap
+
+Cantabile's intended scope extends far beyond global tempo, key or energy labels. The eventual system should preserve **what happens in a recording, when it happens, and the evidence supporting each claim**. The table below describes planned work, not shipped features.
+
+| Stage | Planned result | Status |
+|---|---|---|
+| **1. Reliable evidence pipeline** | Verified recording identities; versioned assets and stems; analyzer inputs, model parameters and dependencies; validity-aware cached results. | **Priority development** |
+| **2. Time-resolved MIR and musical form** | Beat, dynamics, timbre and harmony trajectories; timestamped sections, recurrences and optional verse/chorus labels. Evaluate librosa/MSAF and alternatives. | Planned |
+| **3. Musical similarity** | Audio-window/section embeddings, searchable musical distance and passage-level comparison. Evaluate MERT-class models. | Planned |
+| **4. Acoustic semantics** | Evidence-linked, time-varying instrumentation/texture/atmosphere tags and text-to-audio search. Evaluate CLAP-class models. | Planned |
+| **5. Vocals and lyrics** | Vocal text recovery, line-to-audio alignment, acoustic vocal delivery and lyrical meaning as separate layers. Evaluate Whisper-class components and singing-specific methods. | Planned |
+| **6. Combined track and playlist analysis** | Explanations linked to audio intervals; section-to-section relationships, theme changes, track comparisons and optional transition suggestions. | Planned |
+| **7. Instrument transcription and notation** | Note events, chord timelines, piano MIDI/sheet music, MusicXML and guitar tablature. Evaluate Onsets and Frames, Omnizart, and a separate audio-to-notes + Fretting-Transformer pipeline. | Planned |
+
+All seven analysis outputs remain in scope; none should be marked complete just because a model library can be installed. Model choice, quality, cost, licensing and performance must be evaluated against representative music. Four generic Demucs stems are **not** equivalent to isolated piano or guitar inputs.
+
+Before expanding the interface, the next engineering steps are to version analysis artifacts, attach each observation to its actual input and time interval, and execute dependent analyses through registered backend contracts. Each milestone should ship with reproducible tests, inspectable data, a useful UI view and an export path.
+
+## Architecture and development
+
+The current project uses ports-and-adapters (hexagonal) boundaries:
+
+| Path | Responsibility |
+|---|---|
+| `src/cantabile/domain/` | Track and playlist models, observations, resolution rules |
+| `src/cantabile/ports/` | Interfaces for data stores, audio sources, analyzers and separation |
+| `src/cantabile/application/` | Import, acquisition, analysis, separation and reporting workflows |
+| `src/cantabile/adapters/` | CSV, SQLite, YouTube, lyrics, MIR, Demucs and export implementations |
+| `src/cantabile/presentation/` | CLI and local browser GUI |
+| `tests/` and `governance/` | Tests and dependency/size rules |
+
+For a development environment, install the relevant optional dependencies above, then run:
 
 ```bash
-lint-imports --no-cache                   # check the dependency rule
-python governance/tools/enforce_size.py   # 500-LOC rule
-pytest -q                                  # tests
+python -m pytest -q
+lint-imports --no-cache
+python governance/tools/enforce_size.py
 ```
 
-These also run on every commit via `.pre-commit-config.yaml`. The full set of
-rules is in `governance/policies/architecture_contracts.md`.
+The `0.1.0` tests contain known fixture problems and are **not all clean in the current review**; a passing source check should not be confused with real recording and desktop acceptance testing. Runtime quality checks should include wrong-title/same-duration matches, source overrides, missing files, interrupted separations, changed audio inputs and stem-dependent reanalysis.
 
----
+## License
 
-## Roadmap
-
-Done: import, audio fetch with matching/dedup/overrides/suggestions, the lyrics
-analyzer (LRCLIB + Genius), the MIR analyzer (felt tempo, variability, sections,
-loop-vs-line), Demucs stem separation feeding stem-aware MIR, CSV/HTML export,
-and a local workflow GUI.
+[MIT](LICENSE). Dependencies and optional models carry their own licenses; model weights need separate review before redistribution.
